@@ -1,0 +1,147 @@
+name: Performance Issue
+description: Report slow performance, high memory usage, or inefficient calculations
+title: "[PERFORMANCE]: "
+labels: ["performance"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a performance issue! Please fill out the sections below to help us understand and optimize the problem.
+
+  - type: dropdown
+    id: performance-type
+    attributes:
+      label: Performance Issue Type
+      description: What kind of performance issue are you experiencing?
+      options:
+        - Slow execution time
+        - High memory usage
+        - High CPU usage
+        - Inefficient calculation
+        - Scaling issues
+        - Other (please specify in description)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      description: Which part of the application is slow?
+      options:
+        - Simulation execution
+        - Airport model initialization
+        - Capacity calculation
+        - Data processing
+        - Overall application startup
+        - Other (please specify in description)
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Performance Issue Description
+      description: Describe the performance problem you're experiencing
+      placeholder: "When running simulations with multiple runways, the calculation takes..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this performance issue?
+      placeholder: |
+        1. Configure airport with X runways
+        2. Run simulation with...
+        3. Observe slow performance...
+    validations:
+      required: true
+
+  - type: textarea
+    id: metrics
+    attributes:
+      label: Performance Metrics
+      description: Provide concrete metrics (execution time, memory usage, CPU usage, etc.)
+      placeholder: |
+        - Execution time: 5 minutes
+        - Memory usage: 2GB
+        - CPU usage: 100%
+        - Dataset size: 10,000 movements
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-performance
+    attributes:
+      label: Expected Performance
+      description: What performance did you expect?
+      placeholder: "I expected the calculation to complete in under 10 seconds..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Configuration Details
+      description: Provide details about your configuration (number of runways, simulation parameters, dataset size, etc.)
+      placeholder: |
+        - Number of runways: 4
+        - Minimum separation: 60s
+        - Simulation duration: 1 year
+        - Data points: 10,000
+      render: markdown
+
+  - type: textarea
+    id: profiling
+    attributes:
+      label: Profiling Information
+      description: If you've done any profiling (pprof, benchmarks), include the results here
+      placeholder: |
+        ```
+        go test -bench=. -benchmem
+        or
+        go tool pprof output
+        ```
+      render: shell
+
+  - type: input
+    id: go-version
+    attributes:
+      label: Go Version
+      description: What version of Go are you using?
+      placeholder: "1.24.4"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      description: What operating system are you running?
+      options:
+        - macOS
+        - Linux
+        - Windows
+        - Other (please specify below)
+    validations:
+      required: true
+
+  - type: textarea
+    id: system-specs
+    attributes:
+      label: System Specifications
+      description: Provide your system specifications (CPU, RAM, etc.)
+      placeholder: |
+        - CPU: Intel Core i7 / Apple M1 / etc.
+        - RAM: 16GB
+        - Storage: SSD
+      render: markdown
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context about the performance issue here (previous performance, comparison with other systems, etc.)

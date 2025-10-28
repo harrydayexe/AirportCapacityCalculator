@@ -1,0 +1,96 @@
+name: Simulation Engine Bug
+description: Report a bug in the simulation engine or capacity calculation logic
+title: "[SIMULATION BUG]: "
+labels: ["bug", "simulation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug in the simulation engine! Please fill out the sections below to help us understand and fix the issue.
+
+  - type: dropdown
+    id: simulation-type
+    attributes:
+      label: Simulation Type
+      description: Which simulation are you using?
+      options:
+        - Basic Simulation
+        - Other (please specify in description)
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear description of what the bug is
+      placeholder: "The simulation calculates incorrect capacity when..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: "The capacity should be..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+      placeholder: "Instead, the capacity was..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this bug?
+      placeholder: |
+        1. Configure airport with...
+        2. Set minimum separation to...
+        3. Run simulation...
+        4. Observe incorrect result...
+    validations:
+      required: true
+
+  - type: textarea
+    id: airport-config
+    attributes:
+      label: Airport Configuration
+      description: Provide the airport configuration you were using (code snippet or description)
+      placeholder: |
+        ```go
+        var airport = airport.Airport{
+          Name: "...",
+          // ...
+        }
+        ```
+      render: go
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or Output
+      description: Include any relevant log output or error messages
+      render: shell
+
+  - type: input
+    id: go-version
+    attributes:
+      label: Go Version
+      description: What version of Go are you using?
+      placeholder: "1.24.4"
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context about the problem here
