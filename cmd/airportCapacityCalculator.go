@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	var airport = airport.Airport{
+	airport := airport.Airport{
 		Name:     "Example Airport",
 		IATACode: "EXA",
 		ICAOCode: "KEXA",
@@ -29,15 +29,15 @@ func main() {
 		MinimumSeparation: 60 * time.Second,
 	}
 
-	var logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
 
-	var sim = simulation.NewBasicSim(airport, logger)
+	sim := simulation.NewBasicSim(airport, logger)
 
-	println("Basic Simulation. Single runway, 60 second separation")
+	logger.Info("Basic Simulation. Single runway, 60 second separation")
 	capacity, err := sim.Run(context.Background())
 	if err != nil {
 		panic(err)
 	}
 
-	println("Calculated annual capacity (movements per year):", capacity)
+	logger.Info("Calculated annual capacity (movements per year):", "capacity", capacity)
 }

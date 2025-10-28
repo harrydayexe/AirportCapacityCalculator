@@ -1,4 +1,4 @@
-// THe package simulation defines the Simulation interface for running simulations.
+// The package simulation defines the Simulation interface for running simulations.
 package simulation
 
 import "context"

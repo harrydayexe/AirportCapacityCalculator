@@ -16,6 +16,7 @@ type BasicSim struct {
 	logger  *slog.Logger    // The logger to use for logging.
 }
 
+// NewBasicSim creates a new BasicSim instance.
 func NewBasicSim(airport airport.Airport, logger *slog.Logger) BasicSim {
 	return BasicSim{
 		airport: airport,
@@ -48,8 +49,9 @@ func (s BasicSim) calculateRunwayCapacity(runways []airport.Runway, ctx context.
 
 		return capacity, nil
 	} else if len(runways)%2 == 0 {
-		s.logger.InfoContext(ctx, "Even number of runways available, calculating capacity")
-		var capacity = NUM_SECONDS_IN_YEAR * 2 / float32(s.airport.MinimumSeparation.Seconds())
+		numRunways := float32(len(runways))
+		s.logger.InfoContext(ctx, "Even number of runways available, calculating capacity", "numRunways", numRunways)
+		var capacity = NUM_SECONDS_IN_YEAR * numRunways / float32(s.airport.MinimumSeparation.Seconds())
 		s.logger.InfoContext(ctx, "Calculated even runway capacity", "capacity", capacity)
 		return capacity, nil
 	} else {

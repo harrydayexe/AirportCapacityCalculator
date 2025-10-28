@@ -1,4 +1,3 @@
-// Package runway provides runway modeling and calculations.
 package airport
 
 import "time"
@@ -22,5 +21,5 @@ type Runway struct {
 	SurfaceType       SurfaceType   // Surface type of the runway (e.g., "Asphalt", "Concrete", "Grass")
 	ElevationMeters   float64       // Elevation of the runway above sea level in meters
 	GradientPercent   float64       // Gradient of the runway in percent
-	MinimumSeparation time.Duration // Minimum separation distance between incoming flights in meters
+	MinimumSeparation time.Duration // Minimum separation time between incoming flights
 }
