@@ -1,5 +1,5 @@
 // Package runway provides runway modeling and calculations.
-package runway
+package airport
 
 import "time"
 
