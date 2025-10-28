@@ -20,7 +20,12 @@ Airport represents a physical airport with all its subcomponents.
 
 ```go
 type Airport struct {
-    Name string // The commercial name of the airport
+    Name     string          // The commercial name of the airport
+    IATACode string          // The IATA code of the Airport
+    ICAOCode string          // The ICAO code of the Airport
+    City     string          // The city where the airport is located
+    Country  string          // The country where the airport is located
+    Runways  []runway.Runway // A list of runways at the Airport
 }
 ```
 
