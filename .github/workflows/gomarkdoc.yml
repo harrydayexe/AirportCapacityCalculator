@@ -10,6 +10,10 @@ on:
       - 'go.mod'
       - 'go.sum'
 
+concurrency:
+  group: generate-docs-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   generate-docs:
     runs-on: ubuntu-latest
@@ -31,10 +35,21 @@ jobs:
       - name: Install gomarkdoc
         run: go install github.com/princjef/gomarkdoc/cmd/gomarkdoc@latest
 
+      - name: Verify gomarkdoc installation
+        run: |
+          if ! command -v gomarkdoc &> /dev/null; then
+            echo "Error: gomarkdoc installation failed"
+            exit 1
+          fi
+          gomarkdoc --version
+
       - name: Generate documentation
         run: |
           # Generate README for each package
-          gomarkdoc --output '{{.Dir}}/README.md' ./...
+          if ! gomarkdoc --output '{{.Dir}}/README.md' ./...; then
+            echo "Error: Documentation generation failed"
+            exit 1
+          fi
 
       - name: Check for changes
         id: git-check
