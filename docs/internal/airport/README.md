@@ -8,8 +8,6 @@ import "github.com/harrydayexe/AirportCapacityCalculator/internal/airport"
 
 Package airport provides combined airport modeling and calculations.
 
-Package runway provides runway modeling and calculations.
-
 ## Index
 
 - [type Airport](<#Airport>)
@@ -48,7 +46,7 @@ type Runway struct {
     SurfaceType       SurfaceType   // Surface type of the runway (e.g., "Asphalt", "Concrete", "Grass")
     ElevationMeters   float64       // Elevation of the runway above sea level in meters
     GradientPercent   float64       // Gradient of the runway in percent
-    MinimumSeparation time.Duration // Minimum separation distance between incoming flights in meters
+    MinimumSeparation time.Duration // Minimum separation time between incoming flights
 }
 ```
 

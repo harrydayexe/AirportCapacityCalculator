@@ -44,7 +44,7 @@ func main() {
 		MinimumSeparation: 60 * time.Second,
 	}
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
 	// Define a curfew from 11 PM to 6 AM (7 hours)
 	curfewStart := time.Date(2024, 1, 1, 23, 0, 0, 0, time.UTC)
