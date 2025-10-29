@@ -49,18 +49,54 @@ jobs:
 
             Use the repository's CLAUDE.md for guidance on style and conventions.
 
-            IMPORTANT: When you identify code issues that can be fixed:
-            1. Use `gh pr review` (not `gh pr comment`) to submit your review
-            2. Format code suggestions using GitHub's suggestion syntax:
+            IMPORTANT: When you identify code issues that can be fixed, you MUST create inline review comments using the GitHub API:
+
+            1. First, analyze the PR diff using `gh pr diff ${{ github.event.pull_request.number }}`
+
+            2. For each issue you find, note the file path and line number
+
+            3. Create a review with inline comments using the GitHub API:
+               ```bash
+               gh api \
+                 --method POST \
+                 -H "Accept: application/vnd.github+json" \
+                 -H "X-GitHub-Api-Version: 2022-11-28" \
+                 /repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews \
+                 -f body='Overall review summary here' \
+                 -f event='COMMENT' \
+                 -f 'comments[][path]=path/to/file.go' \
+                 -f 'comments[][line]=42' \
+                 -f 'comments[][body]=Your comment here with ```suggestion blocks for fixes'
+               ```
+
+            4. Use event='REQUEST_CHANGES' for critical issues, 'APPROVE' for approval, or 'COMMENT' for general feedback
+
+            5. Format each inline comment body with GitHub's suggestion syntax:
                ```suggestion
                corrected code here
                ```
-            3. Place suggestions in review comments on the specific lines that need changes
-            4. Each suggestion should show the corrected code that can be applied directly
+
+            6. You can add multiple comments in one review by repeating the -f 'comments[][...]' pattern
+
+            7. The line number should be the line in the NEW version of the file (right side of diff)
+
+            Example for multiple comments:
+            ```bash
+            gh api --method POST \
+              /repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews \
+              -f body='Found several issues to address' \
+              -f event='REQUEST_CHANGES' \
+              -f 'comments[][path]=internal/airport/airport.go' \
+              -f 'comments[][line]=15' \
+              -f 'comments[][body]=Consider adding validation here' \
+              -f 'comments[][path]=cmd/main.go' \
+              -f 'comments[][line]=42' \
+              -f 'comments[][body]=This could be simplified'
+            ```
 
             Be constructive and helpful in your feedback.
 
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://docs.claude.com/en/docs/claude-code/cli-reference for available options
-          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr review:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*)"'
+          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr review:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh api:*)"'
 
