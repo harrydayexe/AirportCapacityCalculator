@@ -3,6 +3,7 @@ package policy
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 )
 
@@ -32,7 +33,7 @@ func (p *MaintenancePolicy) Name() string {
 
 // Apply applies the maintenance policy to the simulation state.
 // It removes runways from the available runway list during maintenance windows.
-func (p *MaintenancePolicy) Apply(ctx context.Context, state interface{}) error {
+func (p *MaintenancePolicy) Apply(ctx context.Context, state interface{}, logger *slog.Logger) error {
 	// Type assertion to SimulationState interface
 	simState, ok := state.(interface {
 		GetAvailableRunways() interface{}
@@ -43,6 +44,11 @@ func (p *MaintenancePolicy) Apply(ctx context.Context, state interface{}) error 
 	if !ok {
 		return fmt.Errorf("invalid state type for MaintenancePolicy")
 	}
+
+	logger.DebugContext(ctx, "Applying maintenance policy",
+		"runways", p.schedule.RunwayDesignations,
+		"duration", p.schedule.Duration,
+		"frequency", p.schedule.Frequency)
 
 	// Calculate maintenance downtime
 	// Number of maintenance windows per year
@@ -62,7 +68,10 @@ func (p *MaintenancePolicy) Apply(ctx context.Context, state interface{}) error 
 
 	// This is a simplified model - in reality, you'd want to track
 	// per-runway availability over time
-	_ = maintenanceHoursPerYear
+	logger.InfoContext(ctx, "Maintenance policy applied",
+		"runways", p.schedule.RunwayDesignations,
+		"maintenance_windows_per_year", maintenanceWindows,
+		"maintenance_hours_per_year", maintenanceHoursPerYear)
 
 	return nil
 }

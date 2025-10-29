@@ -2,10 +2,17 @@ package policy
 
 import (
 	"context"
+	"log/slog"
+	"os"
 	"testing"
 
 	"github.com/harrydayexe/AirportCapacityCalculator/internal/airport"
 )
+
+// testLogger creates a test logger that discards output
+func testLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+}
 
 // mockSimulationState provides a test implementation of the state interface
 type mockSimulationState struct {
@@ -29,7 +36,7 @@ func (m *mockSimulationState) SetAvailableRunways(runways []airport.Runway) {
 	m.availableRunways = runways
 }
 
-func TestNewRunwayRotationPolicy(t *testing.T) {
+func TestNewDefaultRunwayRotationPolicy(t *testing.T) {
 	tests := []struct {
 		name     string
 		strategy RotationStrategy
@@ -42,9 +49,9 @@ func TestNewRunwayRotationPolicy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			policy := NewRunwayRotationPolicy(tt.strategy)
+			policy := NewDefaultRunwayRotationPolicy(tt.strategy)
 			if policy == nil {
-				t.Fatal("NewRunwayRotationPolicy returned nil")
+				t.Fatal("NewDefaultRunwayRotationPolicy returned nil")
 			}
 			if policy.strategy != tt.strategy {
 				t.Errorf("expected strategy %v, got %v", tt.strategy, policy.strategy)
@@ -66,7 +73,7 @@ func TestRunwayRotationPolicy_Name(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.expectedName, func(t *testing.T) {
-			policy := NewRunwayRotationPolicy(tt.strategy)
+			policy := NewDefaultRunwayRotationPolicy(tt.strategy)
 			name := policy.Name()
 			if name != tt.expectedName {
 				t.Errorf("expected name %q, got %q", tt.expectedName, name)
@@ -76,7 +83,7 @@ func TestRunwayRotationPolicy_Name(t *testing.T) {
 }
 
 func TestRunwayRotationPolicy_Apply_NoRotation(t *testing.T) {
-	policy := NewRunwayRotationPolicy(NoRotation)
+	policy := NewDefaultRunwayRotationPolicy(NoRotation)
 	state := &mockSimulationState{
 		operatingHours: 8760,
 		availableRunways: []airport.Runway{
@@ -85,7 +92,7 @@ func TestRunwayRotationPolicy_Apply_NoRotation(t *testing.T) {
 		},
 	}
 
-	err := policy.Apply(context.Background(), state)
+	err := policy.Apply(context.Background(), state, testLogger())
 	if err != nil {
 		t.Fatalf("Apply failed: %v", err)
 	}
@@ -98,7 +105,7 @@ func TestRunwayRotationPolicy_Apply_NoRotation(t *testing.T) {
 }
 
 func TestRunwayRotationPolicy_Apply_TimeBasedRotation(t *testing.T) {
-	policy := NewRunwayRotationPolicy(TimeBasedRotation)
+	policy := NewDefaultRunwayRotationPolicy(TimeBasedRotation)
 	state := &mockSimulationState{
 		operatingHours: 8760,
 		availableRunways: []airport.Runway{
@@ -107,7 +114,7 @@ func TestRunwayRotationPolicy_Apply_TimeBasedRotation(t *testing.T) {
 		},
 	}
 
-	err := policy.Apply(context.Background(), state)
+	err := policy.Apply(context.Background(), state, testLogger())
 	if err != nil {
 		t.Fatalf("Apply failed: %v", err)
 	}
@@ -120,7 +127,7 @@ func TestRunwayRotationPolicy_Apply_TimeBasedRotation(t *testing.T) {
 }
 
 func TestRunwayRotationPolicy_Apply_BalancedRotation(t *testing.T) {
-	policy := NewRunwayRotationPolicy(BalancedRotation)
+	policy := NewDefaultRunwayRotationPolicy(BalancedRotation)
 	state := &mockSimulationState{
 		operatingHours: 8760,
 		availableRunways: []airport.Runway{
@@ -129,7 +136,7 @@ func TestRunwayRotationPolicy_Apply_BalancedRotation(t *testing.T) {
 		},
 	}
 
-	err := policy.Apply(context.Background(), state)
+	err := policy.Apply(context.Background(), state, testLogger())
 	if err != nil {
 		t.Fatalf("Apply failed: %v", err)
 	}
@@ -142,7 +149,7 @@ func TestRunwayRotationPolicy_Apply_BalancedRotation(t *testing.T) {
 }
 
 func TestRunwayRotationPolicy_Apply_NoiseOptimizedRotation(t *testing.T) {
-	policy := NewRunwayRotationPolicy(NoiseOptimizedRotation)
+	policy := NewDefaultRunwayRotationPolicy(NoiseOptimizedRotation)
 	state := &mockSimulationState{
 		operatingHours: 8760,
 		availableRunways: []airport.Runway{
@@ -151,7 +158,7 @@ func TestRunwayRotationPolicy_Apply_NoiseOptimizedRotation(t *testing.T) {
 		},
 	}
 
-	err := policy.Apply(context.Background(), state)
+	err := policy.Apply(context.Background(), state, testLogger())
 	if err != nil {
 		t.Fatalf("Apply failed: %v", err)
 	}
@@ -165,7 +172,7 @@ func TestRunwayRotationPolicy_Apply_NoiseOptimizedRotation(t *testing.T) {
 
 func TestRunwayRotationPolicy_Apply_DefaultOperatingHours(t *testing.T) {
 	// Test that policy correctly handles zero operating hours by defaulting to 8760
-	policy := NewRunwayRotationPolicy(BalancedRotation)
+	policy := NewDefaultRunwayRotationPolicy(BalancedRotation)
 	state := &mockSimulationState{
 		operatingHours: 0, // Not set, should default to 8760
 		availableRunways: []airport.Runway{
@@ -173,7 +180,7 @@ func TestRunwayRotationPolicy_Apply_DefaultOperatingHours(t *testing.T) {
 		},
 	}
 
-	err := policy.Apply(context.Background(), state)
+	err := policy.Apply(context.Background(), state, testLogger())
 	if err != nil {
 		t.Fatalf("Apply failed: %v", err)
 	}
@@ -201,7 +208,7 @@ func TestRunwayRotationPolicy_Apply_EfficiencyMultipliers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.strategy.String(), func(t *testing.T) {
-			policy := NewRunwayRotationPolicy(tt.strategy)
+			policy := NewDefaultRunwayRotationPolicy(tt.strategy)
 			state := &mockSimulationState{
 				operatingHours: tt.initialHours,
 				availableRunways: []airport.Runway{
@@ -209,7 +216,7 @@ func TestRunwayRotationPolicy_Apply_EfficiencyMultipliers(t *testing.T) {
 				},
 			}
 
-			err := policy.Apply(context.Background(), state)
+			err := policy.Apply(context.Background(), state, testLogger())
 			if err != nil {
 				t.Fatalf("Apply failed: %v", err)
 			}
@@ -230,10 +237,10 @@ func TestRunwayRotationPolicy_Apply_EfficiencyMultipliers(t *testing.T) {
 }
 
 func TestRunwayRotationPolicy_Apply_InvalidState(t *testing.T) {
-	policy := NewRunwayRotationPolicy(BalancedRotation)
+	policy := NewDefaultRunwayRotationPolicy(BalancedRotation)
 
 	// Pass an invalid state type
-	err := policy.Apply(context.Background(), "invalid state")
+	err := policy.Apply(context.Background(), "invalid state", testLogger())
 	if err == nil {
 		t.Fatal("expected error for invalid state type, got nil")
 	}
@@ -270,7 +277,7 @@ func TestRunwayRotationPolicy_Apply_CompoundPolicies(t *testing.T) {
 	// Test that rotation policy works correctly when applied after another policy
 	// that has already modified operating hours (e.g., curfew policy)
 
-	policy := NewRunwayRotationPolicy(BalancedRotation)
+	policy := NewDefaultRunwayRotationPolicy(BalancedRotation)
 
 	// Simulate state after a curfew policy has reduced hours from 8760 to 7000
 	state := &mockSimulationState{
@@ -281,7 +288,7 @@ func TestRunwayRotationPolicy_Apply_CompoundPolicies(t *testing.T) {
 		},
 	}
 
-	err := policy.Apply(context.Background(), state)
+	err := policy.Apply(context.Background(), state, testLogger())
 	if err != nil {
 		t.Fatalf("Apply failed: %v", err)
 	}

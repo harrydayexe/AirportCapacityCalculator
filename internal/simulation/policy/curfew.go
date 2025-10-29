@@ -3,6 +3,7 @@ package policy
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 )
 
@@ -28,7 +29,7 @@ func (p *CurfewPolicy) Name() string {
 
 // Apply applies the curfew policy to the simulation state.
 // It calculates the reduced operating hours based on the curfew period.
-func (p *CurfewPolicy) Apply(ctx context.Context, state any) error {
+func (p *CurfewPolicy) Apply(ctx context.Context, state any, logger *slog.Logger) error {
 	// Type assertion to SimulationState interface
 	simState, ok := state.(interface {
 		GetOperatingHours() float32
@@ -38,6 +39,10 @@ func (p *CurfewPolicy) Apply(ctx context.Context, state any) error {
 	if !ok {
 		return fmt.Errorf("invalid state type for CurfewPolicy")
 	}
+
+	logger.DebugContext(ctx, "Applying curfew policy",
+		"start_time", p.startTime,
+		"end_time", p.endTime)
 
 	// Calculate curfew duration in hours
 	curfewDuration := p.endTime.Sub(p.startTime).Hours()
@@ -59,6 +64,12 @@ func (p *CurfewPolicy) Apply(ctx context.Context, state any) error {
 	reducedHours := max(currentHours-float32(dailyCurfewHours*365), 0)
 
 	simState.SetOperatingHours(reducedHours)
+
+	logger.InfoContext(ctx, "Curfew policy applied",
+		"curfew_duration_hours", curfewDuration,
+		"daily_curfew_hours", dailyCurfewHours,
+		"hours_before", currentHours,
+		"hours_after", reducedHours)
 
 	return nil
 }

@@ -3,6 +3,7 @@ package policy
 import (
 	"context"
 	"fmt"
+	"log/slog"
 )
 
 // RotationStrategy defines how runways are rotated to minimize noise impact.
@@ -38,16 +39,50 @@ func (rs RotationStrategy) String() string {
 	}
 }
 
+// RotationPolicyConfiguration holds configuration for runway rotation policies.
+type RotationPolicyConfiguration struct {
+	efficiencyMap map[RotationStrategy]float32
+}
+
+// NewDefaultRotationPolicyConfiguration creates a new default rotation policy configuration
+func NewDefaultRotationPolicyConfiguration() *RotationPolicyConfiguration {
+	return &RotationPolicyConfiguration{
+		efficiencyMap: map[RotationStrategy]float32{
+			NoRotation:             1.0,
+			TimeBasedRotation:      0.95,
+			BalancedRotation:       0.90,
+			NoiseOptimizedRotation: 0.80,
+		},
+	}
+}
+
+// NewRotationPolicyConfiguration creates a new rotation policy configuration
+func NewRotationPolicyConfiguration(efficiencyMap map[RotationStrategy]float32) *RotationPolicyConfiguration {
+	return &RotationPolicyConfiguration{
+		efficiencyMap: efficiencyMap,
+	}
+}
+
 // RunwayRotationPolicy implements runway rotation strategies to distribute
 // aircraft movements across different runways over time.
 type RunwayRotationPolicy struct {
-	strategy RotationStrategy
+	strategy RotationStrategy             // The selected rotation strategy
+	config   *RotationPolicyConfiguration // Configuration for efficiency adjustments
 }
 
 // NewRunwayRotationPolicy creates a new runway rotation policy.
-func NewRunwayRotationPolicy(strategy RotationStrategy) *RunwayRotationPolicy {
+func NewRunwayRotationPolicy(strategy RotationStrategy, config *RotationPolicyConfiguration) *RunwayRotationPolicy {
 	return &RunwayRotationPolicy{
 		strategy: strategy,
+		config:   config,
+	}
+}
+
+// NewDefaultRunwayRotationPolicy creates a new runway rotation policy with the default configuration
+func NewDefaultRunwayRotationPolicy(strategy RotationStrategy) *RunwayRotationPolicy {
+	return &RunwayRotationPolicy{
+		strategy: strategy,
+		config:   NewDefaultRotationPolicyConfiguration(),
 	}
 }
 
@@ -59,7 +94,7 @@ func (p *RunwayRotationPolicy) Name() string {
 // Apply applies the runway rotation policy to the simulation state.
 // Different strategies affect capacity by applying efficiency multipliers to operating hours.
 // Rotation strategies introduce overhead and constraints that reduce theoretical maximum capacity.
-func (p *RunwayRotationPolicy) Apply(ctx context.Context, state interface{}) error {
+func (p *RunwayRotationPolicy) Apply(ctx context.Context, state interface{}, logger *slog.Logger) error {
 	// Type assertion to get state with operating hours
 	simState, ok := state.(interface {
 		GetOperatingHours() float32
@@ -76,34 +111,38 @@ func (p *RunwayRotationPolicy) Apply(ctx context.Context, state interface{}) err
 		currentHours = 8760 // 365 days * 24 hours
 	}
 
+	logger.DebugContext(ctx, "Applying runway rotation policy",
+		"strategy", p.strategy.String(),
+		"current_hours", currentHours)
+
 	// Apply efficiency multiplier based on rotation strategy
 	var efficiencyMultiplier float32
 	switch p.strategy {
 	case NoRotation:
 		// No modification needed - use runways as efficiently as possible
 		// Efficiency: 100% (no penalty)
-		efficiencyMultiplier = 1.0
+		efficiencyMultiplier = p.config.efficiencyMap[NoRotation]
 
 	case TimeBasedRotation:
 		// Time-based rotation introduces small overhead during transition periods
 		// when runways are switched. This accounts for the time to communicate
 		// the change to air traffic control and pilots.
 		// Efficiency: 95% (5% capacity reduction)
-		efficiencyMultiplier = 0.95
+		efficiencyMultiplier = p.config.efficiencyMap[TimeBasedRotation]
 
 	case BalancedRotation:
 		// Balanced rotation distributes usage across all runways equally,
 		// which may not always align with optimal wind conditions or traffic flow.
 		// This introduces moderate efficiency penalties.
 		// Efficiency: 90% (10% capacity reduction)
-		efficiencyMultiplier = 0.90
+		efficiencyMultiplier = p.config.efficiencyMap[BalancedRotation]
 
 	case NoiseOptimizedRotation:
 		// Noise-optimized rotation prioritizes minimizing community noise impact
 		// over operational efficiency. This typically requires using less efficient
 		// runway configurations and more restrictive flight paths.
 		// Efficiency: 80% (20% capacity reduction)
-		efficiencyMultiplier = 0.80
+		efficiencyMultiplier = p.config.efficiencyMap[NoiseOptimizedRotation]
 
 	default:
 		return fmt.Errorf("unknown rotation strategy: %v", p.strategy)
@@ -113,6 +152,12 @@ func (p *RunwayRotationPolicy) Apply(ctx context.Context, state interface{}) err
 	// This effectively reduces capacity by the specified percentage
 	adjustedHours := currentHours * efficiencyMultiplier
 	simState.SetOperatingHours(adjustedHours)
+
+	logger.InfoContext(ctx, "Runway rotation policy applied",
+		"strategy", p.strategy.String(),
+		"efficiency_multiplier", efficiencyMultiplier,
+		"hours_before", currentHours,
+		"hours_after", adjustedHours)
 
 	return nil
 }

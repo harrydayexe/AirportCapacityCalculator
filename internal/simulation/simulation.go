@@ -18,7 +18,7 @@ type PreSimulationPlugin interface {
 // Policy defines a runtime policy that affects simulation behavior during execution.
 type Policy interface {
 	Name() string
-	Apply(ctx context.Context, state any) error
+	Apply(ctx context.Context, state any, logger *slog.Logger) error
 }
 
 // Type aliases for convenience - expose policy package types
@@ -86,7 +86,7 @@ func (s *Simulation) Run(ctx context.Context) (float32, error) {
 	// Apply runtime policies
 	for _, policy := range s.policies {
 		s.logger.InfoContext(ctx, "Applying policy", "policy", policy.Name())
-		if err := policy.Apply(ctx, state); err != nil {
+		if err := policy.Apply(ctx, state, s.logger); err != nil {
 			s.logger.ErrorContext(ctx, "Failed to apply policy", "policy", policy.Name(), "error", err)
 			return 0, err
 		}
@@ -118,7 +118,7 @@ func (s *Simulation) AddMaintenancePolicy(schedule MaintenanceSchedule) *Simulat
 
 // RunwayRotationPolicy adds a runway rotation policy that implements rotation strategies.
 func (s *Simulation) RunwayRotationPolicy(strategy RotationStrategy) *Simulation {
-	p := policy.NewRunwayRotationPolicy(strategy)
+	p := policy.NewDefaultRunwayRotationPolicy(strategy)
 	return s.AddPolicy(p)
 }
 
