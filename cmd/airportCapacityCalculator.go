@@ -31,7 +31,7 @@ func main() {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
 
-	sim := simulation.NewBasicSim(airport, logger)
+	sim := simulation.NewSimulation(airport, logger).AddCurfewPolicy(time.Now(), time.Now().Add(time.Hour*4))
 
 	logger.Info("Basic Simulation. Single runway, 60 second separation")
 	capacity, err := sim.Run(context.Background())
