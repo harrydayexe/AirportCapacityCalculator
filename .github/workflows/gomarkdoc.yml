@@ -1,0 +1,66 @@
+name: Generate Go Documentation
+
+on:
+  push:
+    branches:
+      - main
+    # Only run if Go files or go.mod/go.sum changed
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+
+concurrency:
+  group: generate-docs-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  generate-docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.4'
+
+      - name: Install gomarkdoc
+        run: go install github.com/princjef/gomarkdoc/cmd/gomarkdoc@latest
+
+      - name: Verify gomarkdoc installation
+        run: |
+          if ! command -v gomarkdoc &> /dev/null; then
+            echo "Error: gomarkdoc installation failed"
+            exit 1
+          fi
+          gomarkdoc --version
+
+      - name: Generate documentation
+        run: |
+          # Generate README for each package
+          if ! gomarkdoc --output '{{.Dir}}/README.md' ./...; then
+            echo "Error: Documentation generation failed"
+            exit 1
+          fi
+
+      - name: Check for changes
+        id: git-check
+        run: |
+          git diff --exit-code || echo "changed=true" >> $GITHUB_OUTPUT
+
+      - name: Commit and push changes
+        if: steps.git-check.outputs.changed == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add .
+          git commit -m "docs: update package documentation [skip ci]"
+          git push
