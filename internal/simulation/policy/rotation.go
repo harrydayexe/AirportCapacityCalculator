@@ -108,7 +108,7 @@ func (p *RunwayRotationPolicy) Apply(ctx context.Context, state interface{}, log
 	// Get current operating hours (if not set, assume 24/7 operation)
 	currentHours := simState.GetOperatingHours()
 	if currentHours == 0 {
-		currentHours = 8760 // 365 days * 24 hours
+		currentHours = HoursPerYear
 	}
 
 	logger.DebugContext(ctx, "Applying runway rotation policy",

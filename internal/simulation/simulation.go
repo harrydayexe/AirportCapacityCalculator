@@ -105,9 +105,13 @@ func (s *Simulation) AddPolicy(policy Policy) *Simulation {
 }
 
 // AddCurfewPolicy adds a curfew policy that restricts airport operations during specified hours.
-func (s *Simulation) AddCurfewPolicy(startTime, endTime time.Time) *Simulation {
-	p := policy.NewCurfewPolicy(startTime, endTime)
-	return s.AddPolicy(p)
+// Returns an error if the curfew time range is invalid.
+func (s *Simulation) AddCurfewPolicy(startTime, endTime time.Time) (*Simulation, error) {
+	p, err := policy.NewCurfewPolicy(startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+	return s.AddPolicy(p), nil
 }
 
 // AddMaintenancePolicy adds a maintenance policy that schedules runway maintenance.

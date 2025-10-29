@@ -2,9 +2,25 @@ package policy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
+)
+
+// Common errors for curfew policy validation
+var (
+	// ErrInvalidCurfewTime indicates the curfew time range is invalid
+	ErrInvalidCurfewTime = errors.New("curfew end time must be after start time")
+
+	// ErrCurfewTooLong indicates the curfew duration exceeds reasonable limits
+	ErrCurfewTooLong = errors.New("curfew duration exceeds maximum allowed duration")
+)
+
+const (
+	// MaxCurfewDuration defines the maximum allowed curfew duration (30 days)
+	// This prevents misconfiguration where extremely long curfews would make the simulation invalid
+	MaxCurfewDuration = 30 * 24 * time.Hour
 )
 
 // CurfewPolicy restricts airport operations during specified time ranges.
@@ -14,12 +30,24 @@ type CurfewPolicy struct {
 	endTime   time.Time // End of curfew period
 }
 
-// NewCurfewPolicy creates a new curfew policy.
-func NewCurfewPolicy(startTime, endTime time.Time) *CurfewPolicy {
+// NewCurfewPolicy creates a new curfew policy with validation.
+// Returns an error if the time range is invalid.
+func NewCurfewPolicy(startTime, endTime time.Time) (*CurfewPolicy, error) {
+	// Validate that end time is after start time
+	if !endTime.After(startTime) {
+		return nil, ErrInvalidCurfewTime
+	}
+
+	// Validate that the duration is reasonable
+	duration := endTime.Sub(startTime)
+	if duration > MaxCurfewDuration {
+		return nil, ErrCurfewTooLong
+	}
+
 	return &CurfewPolicy{
 		startTime: startTime,
 		endTime:   endTime,
-	}
+	}, nil
 }
 
 // Name returns the policy name.
@@ -50,18 +78,18 @@ func (p *CurfewPolicy) Apply(ctx context.Context, state any, logger *slog.Logger
 	// Reduce operating hours by curfew duration
 	currentHours := simState.GetOperatingHours()
 	if currentHours == 0 {
-		// If operating hours not yet set, assume 24/7 operation (8760 hours per year)
-		currentHours = 8760
+		// If operating hours not yet set, assume 24/7 operation
+		currentHours = HoursPerYear
 	}
 
 	// Calculate daily curfew as a percentage of 24 hours
 	dailyCurfewHours := curfewDuration
-	if dailyCurfewHours > 24 {
-		dailyCurfewHours = curfewDuration - float64(int(curfewDuration/24)*24)
+	if dailyCurfewHours > HoursPerDay {
+		dailyCurfewHours = curfewDuration - float64(int(curfewDuration/HoursPerDay)*HoursPerDay)
 	}
 
-	// Reduce annual operating hours by daily curfew * 365 days
-	reducedHours := max(currentHours-float32(dailyCurfewHours*365), 0)
+	// Reduce annual operating hours by daily curfew * days per year
+	reducedHours := max(currentHours-float32(dailyCurfewHours*DaysPerYear), 0)
 
 	simState.SetOperatingHours(reducedHours)
 
