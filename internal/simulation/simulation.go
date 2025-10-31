@@ -15,10 +15,10 @@ type PreSimulationPlugin interface {
 	Apply(airport.Airport) airport.Airport
 }
 
-// Policy defines a runtime policy that affects simulation behavior during execution.
+// Policy defines a runtime policy that generates events for the event-driven simulation.
 type Policy interface {
 	Name() string
-	Apply(ctx context.Context, state any, logger *slog.Logger) error
+	GenerateEvents(ctx context.Context, world policy.EventWorld) error
 }
 
 // Type aliases for convenience - expose policy package types
@@ -35,16 +35,7 @@ const (
 	NoiseOptimizedRotation = policy.NoiseOptimizedRotation
 )
 
-// SimulationState represents the mutable state during simulation execution.
-type SimulationState struct {
-	Airport          airport.Airport  // The airport being simulated
-	CurrentTime      time.Time        // Current simulation time
-	AvailableRunways []airport.Runway // Runways currently available
-	TotalMovements   float32          // Total movements processed
-	OperatingHours   float32          // Total hours of operation
-}
-
-// Simulation represents a simulation that can be run.
+// Simulation represents an event-driven simulation that can be run.
 type Simulation struct {
 	airport              airport.Airport       // The airport to simulate.
 	logger               *slog.Logger          // The logger to use for logging.
@@ -68,34 +59,41 @@ func (s *Simulation) AddPreSimulationPlugin(plugin PreSimulationPlugin) *Simulat
 	return s
 }
 
+// Run executes the event-driven simulation.
 func (s *Simulation) Run(ctx context.Context) (float32, error) {
 	// Apply pre-simulation plugins
 	for _, plugin := range s.preSimulationPlugins {
 		s.airport = plugin.Apply(s.airport)
 	}
 
-	// Initialize simulation state
-	state := &SimulationState{
-		Airport:          s.airport,
-		CurrentTime:      time.Now(),
-		AvailableRunways: s.airport.Runways,
-		TotalMovements:   0,
-		OperatingHours:   0,
-	}
+	// Create simulation world
+	startTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	endTime := startTime.AddDate(1, 0, 0) // One year simulation
 
-	// Apply runtime policies
+	world := NewWorld(s.airport, startTime, endTime)
+
+	s.logger.InfoContext(ctx, "Starting event-driven simulation",
+		"airport", s.airport.Name,
+		"startTime", startTime,
+		"endTime", endTime)
+
+	// Let policies generate events
 	for _, policy := range s.policies {
-		s.logger.InfoContext(ctx, "Applying policy", "policy", policy.Name())
-		if err := policy.Apply(ctx, state, s.logger); err != nil {
-			s.logger.ErrorContext(ctx, "Failed to apply policy", "policy", policy.Name(), "error", err)
+		s.logger.InfoContext(ctx, "Generating events for policy", "policy", policy.Name())
+		if err := policy.GenerateEvents(ctx, world); err != nil {
+			s.logger.ErrorContext(ctx, "Failed to generate events",
+				"policy", policy.Name(),
+				"error", err)
 			return 0, err
 		}
 	}
 
-	// Run the simulation engine with the policy-modified state
-	s.logger.InfoContext(ctx, "Running simulation for airport", "airport", s.airport.Name)
+	s.logger.InfoContext(ctx, "Events generated",
+		"totalEvents", world.Events.Len())
+
+	// Run event-driven simulation
 	engine := NewEngine(s.logger)
-	return engine.Calculate(ctx, state)
+	return engine.Calculate(ctx, world)
 }
 
 // AddPolicy adds a runtime policy to the simulation.
@@ -124,21 +122,4 @@ func (s *Simulation) AddMaintenancePolicy(schedule MaintenanceSchedule) *Simulat
 func (s *Simulation) RunwayRotationPolicy(strategy RotationStrategy) *Simulation {
 	p := policy.NewDefaultRunwayRotationPolicy(strategy)
 	return s.AddPolicy(p)
-}
-
-// Helper methods for SimulationState to support policy operations
-func (ss *SimulationState) GetOperatingHours() float32 {
-	return ss.OperatingHours
-}
-
-func (ss *SimulationState) SetOperatingHours(hours float32) {
-	ss.OperatingHours = hours
-}
-
-func (ss *SimulationState) GetAvailableRunways() []airport.Runway {
-	return ss.AvailableRunways
-}
-
-func (ss *SimulationState) SetAvailableRunways(runways []airport.Runway) {
-	ss.AvailableRunways = runways
 }

@@ -25,6 +25,7 @@ func main() {
 				LengthMeters:      3000.0,
 				WidthMeters:       45.0,
 				SurfaceType:       airport.Asphalt,
+				MinimumSeparation: 60 * time.Second,
 			},
 			{
 				RunwayDesignation: "09R",
@@ -32,6 +33,7 @@ func main() {
 				LengthMeters:      3000.0,
 				WidthMeters:       45.0,
 				SurfaceType:       airport.Asphalt,
+				MinimumSeparation: 60 * time.Second,
 			},
 			{
 				RunwayDesignation: "18",
@@ -39,9 +41,9 @@ func main() {
 				LengthMeters:      2500.0,
 				WidthMeters:       45.0,
 				SurfaceType:       airport.Asphalt,
+				MinimumSeparation: 60 * time.Second,
 			},
 		},
-		MinimumSeparation: 60 * time.Second,
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))

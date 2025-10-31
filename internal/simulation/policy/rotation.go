@@ -3,7 +3,8 @@ package policy
 import (
 	"context"
 	"fmt"
-	"log/slog"
+
+	"github.com/harrydayexe/AirportCapacityCalculator/internal/simulation/event"
 )
 
 // RotationStrategy defines how runways are rotated to minimize noise impact.
@@ -91,31 +92,13 @@ func (p *RunwayRotationPolicy) Name() string {
 	return fmt.Sprintf("RunwayRotationPolicy(%s)", p.strategy.String())
 }
 
-// Apply applies the runway rotation policy to the simulation state.
-// Different strategies affect capacity by applying efficiency multipliers to operating hours.
+// GenerateEvents generates a rotation change event at the start of the simulation.
+// Different strategies affect capacity by applying efficiency multipliers.
 // Rotation strategies introduce overhead and constraints that reduce theoretical maximum capacity.
-func (p *RunwayRotationPolicy) Apply(ctx context.Context, state interface{}, logger *slog.Logger) error {
-	// Type assertion to get state with operating hours
-	simState, ok := state.(interface {
-		GetOperatingHours() float32
-		SetOperatingHours(float32)
-	})
+func (p *RunwayRotationPolicy) GenerateEvents(ctx context.Context, world EventWorld) error {
+	startTime := world.GetStartTime()
 
-	if !ok {
-		return fmt.Errorf("invalid state type for RunwayRotationPolicy")
-	}
-
-	// Get current operating hours (if not set, assume 24/7 operation)
-	currentHours := simState.GetOperatingHours()
-	if currentHours == 0 {
-		currentHours = HoursPerYear
-	}
-
-	logger.DebugContext(ctx, "Applying runway rotation policy",
-		"strategy", p.strategy.String(),
-		"current_hours", currentHours)
-
-	// Apply efficiency multiplier based on rotation strategy
+	// Get efficiency multiplier based on rotation strategy
 	var efficiencyMultiplier float32
 	switch p.strategy {
 	case NoRotation:
@@ -148,16 +131,9 @@ func (p *RunwayRotationPolicy) Apply(ctx context.Context, state interface{}, log
 		return fmt.Errorf("unknown rotation strategy: %v", p.strategy)
 	}
 
-	// Apply the efficiency multiplier to operating hours
-	// This effectively reduces capacity by the specified percentage
-	adjustedHours := currentHours * efficiencyMultiplier
-	simState.SetOperatingHours(adjustedHours)
-
-	logger.InfoContext(ctx, "Runway rotation policy applied",
-		"strategy", p.strategy.String(),
-		"efficiency_multiplier", efficiencyMultiplier,
-		"hours_before", currentHours,
-		"hours_after", adjustedHours)
+	// Schedule a rotation change event at the start of the simulation
+	// This sets the efficiency multiplier for the entire simulation period
+	world.ScheduleEvent(event.NewRotationChangeEvent(efficiencyMultiplier, startTime))
 
 	return nil
 }
