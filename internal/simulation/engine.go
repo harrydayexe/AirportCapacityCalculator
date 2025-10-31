@@ -42,16 +42,13 @@ func (e *Engine) Calculate(ctx context.Context, state *SimulationState) (float32
 
 // calculateOperatingSeconds determines how many seconds per year the airport operates.
 func (e *Engine) calculateOperatingSeconds(state *SimulationState) float32 {
-	const secondsPerHour = 3600
-	const hoursPerYear = 8760 // 365 days * 24 hours
-
 	operatingHours := state.OperatingHours
 	if operatingHours == 0 {
 		// Default to full year operation if not set by policies
-		operatingHours = hoursPerYear
+		operatingHours = HoursPerYear
 	}
 
-	return operatingHours * secondsPerHour
+	return operatingHours * SecondsPerHour
 }
 
 // calculateRunwayCapacity calculates the capacity based on runway configuration and operating time.
