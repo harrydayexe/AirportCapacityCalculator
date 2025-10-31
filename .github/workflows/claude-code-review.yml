@@ -33,6 +33,7 @@ jobs:
 
       - name: Run Claude Code Review
         id: claude-review
+        continue-on-error: true
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -54,4 +55,12 @@ jobs:
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://docs.claude.com/en/docs/claude-code/cli-reference for available options
           claude_args: '--allowed-tools "Bash(gh pr diff:*),Bash(gh pr comment:*)"'
+
+      - name: Check for rate limit errors
+        if: steps.claude-review.outcome == 'failure'
+        run: |
+          echo "::warning::Claude Code review failed. This may be due to rate limits or other issues."
+          echo "If this is a rate limit error, it will reset at 3am. You can re-run the workflow after that time."
+          echo "Check the logs above for more details about the failure."
+          exit 0
 
