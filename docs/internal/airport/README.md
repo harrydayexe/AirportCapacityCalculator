@@ -16,24 +16,23 @@ Package airport provides combined airport modeling and calculations.
 
 
 <a name="Airport"></a>
-## type Airport
+## type [Airport](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/airport/airport.go#L5-L12>)
 
 Airport represents a physical airport with all its subcomponents.
 
 ```go
 type Airport struct {
-    Name              string        // The commercial name of the airport
-    IATACode          string        // The IATA code of the Airport
-    ICAOCode          string        // The ICAO code of the Airport
-    City              string        // The city where the airport is located
-    Country           string        // The country where the airport is located
-    Runways           []Runway      // A list of runways at the Airport
-    MinimumSeparation time.Duration // Minimum separation time between movements on the same runway
+    Name     string   // The commercial name of the airport
+    IATACode string   // The IATA code of the Airport
+    ICAOCode string   // The ICAO code of the Airport
+    City     string   // The city where the airport is located
+    Country  string   // The country where the airport is located
+    Runways  []Runway // A list of runways at the Airport
 }
 ```
 
 <a name="Runway"></a>
-## type Runway
+## type [Runway](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/airport/runway.go#L16-L25>)
 
 Runway represents a physical runway with all operational parameters.
 
@@ -51,7 +50,7 @@ type Runway struct {
 ```
 
 <a name="SurfaceType"></a>
-## type SurfaceType
+## type [SurfaceType](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/airport/runway.go#L6>)
 
 SurfaceType represents the type of surface of the runway.
 
