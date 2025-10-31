@@ -6,53 +6,115 @@
 import "github.com/harrydayexe/AirportCapacityCalculator/internal/simulation"
 ```
 
-THe package simulation defines the Simulation interface for running simulations.
+The package simulation defines the Simulation interface for running simulations.
 
 ## Index
 
 - [Constants](<#constants>)
-- [type BasicSim](<#BasicSim>)
-  - [func NewBasicSim\(airport airport.Airport, logger \*slog.Logger\) BasicSim](<#NewBasicSim>)
-  - [func \(s BasicSim\) Run\(ctx context.Context\) \(float32, error\)](<#BasicSim.Run>)
+- [type Engine](<#Engine>)
+  - [func NewEngine\(logger \*slog.Logger\) \*Engine](<#NewEngine>)
+  - [func \(e \*Engine\) Calculate\(ctx context.Context, state \*SimulationState\) \(float32, error\)](<#Engine.Calculate>)
+- [type MaintenanceSchedule](<#MaintenanceSchedule>)
+- [type Policy](<#Policy>)
+- [type PreSimulationPlugin](<#PreSimulationPlugin>)
+- [type RotationStrategy](<#RotationStrategy>)
 - [type Simulation](<#Simulation>)
+  - [func NewSimulation\(airport airport.Airport, logger \*slog.Logger\) \*Simulation](<#NewSimulation>)
+  - [func \(s \*Simulation\) AddCurfewPolicy\(startTime, endTime time.Time\) \*Simulation](<#Simulation.AddCurfewPolicy>)
+  - [func \(s \*Simulation\) AddMaintenancePolicy\(schedule MaintenanceSchedule\) \*Simulation](<#Simulation.AddMaintenancePolicy>)
+  - [func \(s \*Simulation\) AddPolicy\(policy Policy\) \*Simulation](<#Simulation.AddPolicy>)
+  - [func \(s \*Simulation\) AddPreSimulationPlugin\(plugin PreSimulationPlugin\) \*Simulation](<#Simulation.AddPreSimulationPlugin>)
+  - [func \(s \*Simulation\) Run\(ctx context.Context\) \(float32, error\)](<#Simulation.Run>)
+  - [func \(s \*Simulation\) RunwayRotationPolicy\(strategy RotationStrategy\) \*Simulation](<#Simulation.RunwayRotationPolicy>)
+- [type SimulationState](<#SimulationState>)
+  - [func \(ss \*SimulationState\) GetAvailableRunways\(\) \[\]airport.Runway](<#SimulationState.GetAvailableRunways>)
+  - [func \(ss \*SimulationState\) GetOperatingHours\(\) float32](<#SimulationState.GetOperatingHours>)
+  - [func \(ss \*SimulationState\) SetAvailableRunways\(runways \[\]airport.Runway\)](<#SimulationState.SetAvailableRunways>)
+  - [func \(ss \*SimulationState\) SetOperatingHours\(hours float32\)](<#SimulationState.SetOperatingHours>)
 
 
 ## Constants
 
-<a name="NUM_SECONDS_IN_YEAR"></a>NUM\_SECONDS\_IN\_YEAR defines the number of seconds in a year.
+<a name="NoRotation"></a>Rotation strategy constants
 
 ```go
-const NUM_SECONDS_IN_YEAR float32 = 31536000
+const (
+    NoRotation             = policy.NoRotation
+    TimeBasedRotation      = policy.TimeBasedRotation
+    BalancedRotation       = policy.BalancedRotation
+    NoiseOptimizedRotation = policy.NoiseOptimizedRotation
+)
 ```
 
-<a name="BasicSim"></a>
-## type BasicSim
+<a name="Engine"></a>
+## type Engine
 
-BasicSim is a basic implementation of the Simulation interface where the airport exists in a perfect world.
+Engine is the core simulation engine that calculates total movements based on the state modified by policies and plugins.
 
 ```go
-type BasicSim struct {
+type Engine struct {
     // contains filtered or unexported fields
 }
 ```
 
-<a name="NewBasicSim"></a>
-### func NewBasicSim
+<a name="NewEngine"></a>
+### func NewEngine
 
 ```go
-func NewBasicSim(airport airport.Airport, logger *slog.Logger) BasicSim
+func NewEngine(logger *slog.Logger) *Engine
 ```
 
+NewEngine creates a new simulation engine.
 
-
-<a name="BasicSim.Run"></a>
-### func \(BasicSim\) Run
+<a name="Engine.Calculate"></a>
+### func \(\*Engine\) Calculate
 
 ```go
-func (s BasicSim) Run(ctx context.Context) (float32, error)
+func (e *Engine) Calculate(ctx context.Context, state *SimulationState) (float32, error)
 ```
 
+Calculate computes the total annual movements based on the simulation state. It considers: \- Available runways \(after policies like maintenance are applied\) \- Operating hours \(after policies like curfew are applied\) \- Minimum separation requirements from the airport configuration
 
+<a name="MaintenanceSchedule"></a>
+## type MaintenanceSchedule
+
+Type aliases for convenience \- expose policy package types
+
+```go
+type MaintenanceSchedule = policy.MaintenanceSchedule
+```
+
+<a name="Policy"></a>
+## type Policy
+
+Policy defines a runtime policy that affects simulation behavior during execution.
+
+```go
+type Policy interface {
+    Name() string
+    Apply(ctx context.Context, state any, logger *slog.Logger) error
+}
+```
+
+<a name="PreSimulationPlugin"></a>
+## type PreSimulationPlugin
+
+PreSimulationPlugin defines a plugin that modifies the airport configuration before the simulation runs.
+
+```go
+type PreSimulationPlugin interface {
+    Apply(airport.Airport) airport.Airport
+}
+```
+
+<a name="RotationStrategy"></a>
+## type RotationStrategy
+
+Type aliases for convenience \- expose policy package types
+
+```go
+type RotationStrategy = policy.RotationStrategy
+```
 
 <a name="Simulation"></a>
 ## type Simulation
@@ -60,9 +122,123 @@ func (s BasicSim) Run(ctx context.Context) (float32, error)
 Simulation represents a simulation that can be run.
 
 ```go
-type Simulation interface {
-    Run(context.Context) (float32, error) // Run executes the simulation and returns a result (max movements per year) and an error if any.
+type Simulation struct {
+    // contains filtered or unexported fields
 }
 ```
+
+<a name="NewSimulation"></a>
+### func NewSimulation
+
+```go
+func NewSimulation(airport airport.Airport, logger *slog.Logger) *Simulation
+```
+
+NewSimulation creates a new Simulation instance.
+
+<a name="Simulation.AddCurfewPolicy"></a>
+### func \(\*Simulation\) AddCurfewPolicy
+
+```go
+func (s *Simulation) AddCurfewPolicy(startTime, endTime time.Time) *Simulation
+```
+
+AddCurfewPolicy adds a curfew policy that restricts airport operations during specified hours.
+
+<a name="Simulation.AddMaintenancePolicy"></a>
+### func \(\*Simulation\) AddMaintenancePolicy
+
+```go
+func (s *Simulation) AddMaintenancePolicy(schedule MaintenanceSchedule) *Simulation
+```
+
+AddMaintenancePolicy adds a maintenance policy that schedules runway maintenance.
+
+<a name="Simulation.AddPolicy"></a>
+### func \(\*Simulation\) AddPolicy
+
+```go
+func (s *Simulation) AddPolicy(policy Policy) *Simulation
+```
+
+AddPolicy adds a runtime policy to the simulation.
+
+<a name="Simulation.AddPreSimulationPlugin"></a>
+### func \(\*Simulation\) AddPreSimulationPlugin
+
+```go
+func (s *Simulation) AddPreSimulationPlugin(plugin PreSimulationPlugin) *Simulation
+```
+
+AddPreSimulationPlugin adds a pre\-simulation plugin to the simulation.
+
+<a name="Simulation.Run"></a>
+### func \(\*Simulation\) Run
+
+```go
+func (s *Simulation) Run(ctx context.Context) (float32, error)
+```
+
+
+
+<a name="Simulation.RunwayRotationPolicy"></a>
+### func \(\*Simulation\) RunwayRotationPolicy
+
+```go
+func (s *Simulation) RunwayRotationPolicy(strategy RotationStrategy) *Simulation
+```
+
+RunwayRotationPolicy adds a runway rotation policy that implements rotation strategies.
+
+<a name="SimulationState"></a>
+## type SimulationState
+
+SimulationState represents the mutable state during simulation execution.
+
+```go
+type SimulationState struct {
+    Airport          airport.Airport  // The airport being simulated
+    CurrentTime      time.Time        // Current simulation time
+    AvailableRunways []airport.Runway // Runways currently available
+    TotalMovements   float32          // Total movements processed
+    OperatingHours   float32          // Total hours of operation
+}
+```
+
+<a name="SimulationState.GetAvailableRunways"></a>
+### func \(\*SimulationState\) GetAvailableRunways
+
+```go
+func (ss *SimulationState) GetAvailableRunways() []airport.Runway
+```
+
+
+
+<a name="SimulationState.GetOperatingHours"></a>
+### func \(\*SimulationState\) GetOperatingHours
+
+```go
+func (ss *SimulationState) GetOperatingHours() float32
+```
+
+Helper methods for SimulationState to support policy operations
+
+<a name="SimulationState.SetAvailableRunways"></a>
+### func \(\*SimulationState\) SetAvailableRunways
+
+```go
+func (ss *SimulationState) SetAvailableRunways(runways []airport.Runway)
+```
+
+
+
+<a name="SimulationState.SetOperatingHours"></a>
+### func \(\*SimulationState\) SetOperatingHours
+
+```go
+func (ss *SimulationState) SetOperatingHours(hours float32)
+```
+
+
 
 Generated by [gomarkdoc](<https://github.com/princjef/gomarkdoc>)
