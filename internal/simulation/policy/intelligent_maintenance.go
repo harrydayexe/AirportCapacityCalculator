@@ -15,26 +15,18 @@ type TimeWindow struct {
 	End   time.Time
 }
 
-// PeakHours defines hours of the day to avoid for maintenance (e.g., 6am-10pm).
-type PeakHours struct {
-	StartHour int // 0-23
-	EndHour   int // 0-23
-}
-
 // IntelligentMaintenanceSchedule defines an intelligent maintenance schedule that coordinates with operational constraints.
 type IntelligentMaintenanceSchedule struct {
 	RunwayDesignations       []string      // Runway identifiers to maintain
 	Duration                 time.Duration // Duration of maintenance window
 	Frequency                time.Duration // How often maintenance must occur
 	MinimumOperationalRunways int           // Minimum runways that must remain operational (default: 1)
-	PeakHours                *PeakHours    // Optional: hours to avoid if possible
 	CurfewStart              *time.Time    // Optional: daily curfew start time (for coordination)
 	CurfewEnd                *time.Time    // Optional: daily curfew end time
 }
 
 // IntelligentMaintenancePolicy schedules runway maintenance intelligently by:
 // - Preferring maintenance during or adjacent to curfew periods
-// - Avoiding peak hours when possible
 // - Coordinating across runways to maintain minimum operational capacity
 type IntelligentMaintenancePolicy struct {
 	schedule IntelligentMaintenanceSchedule
@@ -45,16 +37,6 @@ func NewIntelligentMaintenancePolicy(schedule IntelligentMaintenanceSchedule) (*
 	// Set defaults
 	if schedule.MinimumOperationalRunways <= 0 {
 		schedule.MinimumOperationalRunways = 1
-	}
-
-	// Validate peak hours
-	if schedule.PeakHours != nil {
-		if schedule.PeakHours.StartHour < 0 || schedule.PeakHours.StartHour > 23 {
-			return nil, fmt.Errorf("invalid peak hours start: %d (must be 0-23)", schedule.PeakHours.StartHour)
-		}
-		if schedule.PeakHours.EndHour < 0 || schedule.PeakHours.EndHour > 23 {
-			return nil, fmt.Errorf("invalid peak hours end: %d (must be 0-23)", schedule.PeakHours.EndHour)
-		}
 	}
 
 	return &IntelligentMaintenancePolicy{
@@ -232,25 +214,7 @@ func (p *IntelligentMaintenancePolicy) findOptimalWindow(
 		}
 	}
 
-	// Try 4: Outside peak hours (if configured)
-	if p.schedule.PeakHours != nil {
-		candidate := preferredStart
-		searchEnd := preferredStart.Add(p.schedule.Frequency) // Search within one frequency cycle
-		if searchEnd.After(endTime) {
-			searchEnd = endTime
-		}
-
-		for candidate.Before(searchEnd) {
-			if !p.isInPeakHours(candidate) && !p.isInPeakHours(candidate.Add(duration)) {
-				if p.checkRunwayCoordination(candidate, candidate.Add(duration), existingMaintenance) {
-					return candidate
-				}
-			}
-			candidate = candidate.Add(1 * time.Hour) // Check hourly
-		}
-	}
-
-	// Try 5: Fallback to preferred start if coordination allows
+	// Try 4: Fallback to preferred start if coordination allows
 	if p.checkRunwayCoordination(preferredStart, preferredStart.Add(duration), existingMaintenance) {
 		return preferredStart
 	}
@@ -285,24 +249,6 @@ func (p *IntelligentMaintenancePolicy) checkRunwayCoordination(
 	maxConcurrentMaintenance := totalRunways - p.schedule.MinimumOperationalRunways
 
 	return concurrentMaintenance < maxConcurrentMaintenance
-}
-
-// isInPeakHours checks if a time falls within configured peak hours.
-func (p *IntelligentMaintenancePolicy) isInPeakHours(t time.Time) bool {
-	if p.schedule.PeakHours == nil {
-		return false
-	}
-
-	hour := t.Hour()
-	start := p.schedule.PeakHours.StartHour
-	end := p.schedule.PeakHours.EndHour
-
-	if start <= end {
-		// Normal range (e.g., 6-22)
-		return hour >= start && hour < end
-	}
-	// Overnight range (e.g., 22-6)
-	return hour >= start || hour < end
 }
 
 // Helper to sort maintenance windows by start time

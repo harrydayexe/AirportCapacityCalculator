@@ -13,7 +13,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Intelligent Maintenance Scheduling** (`internal/simulation/policy/intelligent_maintenance.go`)
 - Curfew-aware maintenance scheduling (prefers maintenance during operational downtime)
-- Peak hours avoidance configuration
 - Runway coordination (ensures minimum runways remain operational)
 - Automatic staggering of maintenance across runway fleet
 - Reduces capacity impact by optimizing when maintenance occurs
@@ -63,7 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 1. Try to schedule during curfew (if maintenance fits entirely within curfew)
 2. Try to schedule adjacent to curfew start (maintenance ends when curfew starts)
 3. Try to schedule adjacent to curfew end (maintenance starts when curfew ends)
-4. Avoid peak hours if configured
+4. Fallback to preferred start time if coordination allows
 5. Ensure minimum operational runways maintained at all times
 6. Stagger maintenance across runways (offset start times)
 
@@ -89,7 +88,6 @@ sim, err := simulation.NewSimulation(airport, logger).
         MinimumOperationalRunways: 1,
         CurfewStart:              &curfewStart,
         CurfewEnd:                &curfewEnd,
-        PeakHours:                &simulation.PeakHours{StartHour: 6, EndHour: 22},
     })
 
 // Gate capacity constraints

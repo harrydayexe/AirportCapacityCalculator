@@ -120,44 +120,6 @@ func TestIntelligentMaintenancePolicy_RunwayCoordination(t *testing.T) {
 	}
 }
 
-func TestIntelligentMaintenancePolicy_PeakHoursAvoidance(t *testing.T) {
-	// Setup: Avoid peak hours 08:00-20:00
-	simStart := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	simEnd := simStart.AddDate(0, 0, 7)
-
-	schedule := IntelligentMaintenanceSchedule{
-		RunwayDesignations:       []string{"09L"},
-		Duration:                 2 * time.Hour,
-		Frequency:                48 * time.Hour, // Every 2 days
-		MinimumOperationalRunways: 1,
-		PeakHours: &PeakHours{
-			StartHour: 8,
-			EndHour:   20,
-		},
-	}
-
-	policy, err := NewIntelligentMaintenancePolicy(schedule)
-	if err != nil {
-		t.Fatalf("Failed to create policy: %v", err)
-	}
-
-	world := newMockEventWorld(simStart, simEnd, []string{"09L"})
-	err = policy.GenerateEvents(context.Background(), world)
-	if err != nil {
-		t.Fatalf("GenerateEvents failed: %v", err)
-	}
-
-	// Verify maintenance starts outside peak hours
-	for _, evt := range world.events {
-		if evt.Type() == event.RunwayMaintenanceStartType {
-			hour := evt.Time().Hour()
-			if hour >= 8 && hour < 20 {
-				t.Errorf("Maintenance scheduled during peak hours: %v (hour: %d)", evt.Time(), hour)
-			}
-		}
-	}
-}
-
 func TestIntelligentMaintenancePolicy_CurfewAdjacent(t *testing.T) {
 	// Setup: Maintenance that can be scheduled adjacent to curfew
 	simStart := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -261,32 +223,11 @@ func TestIntelligentMaintenancePolicy_InvalidConfiguration(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name: "invalid peak hours start",
-			schedule: IntelligentMaintenanceSchedule{
-				RunwayDesignations: []string{"09L"},
-				Duration:           2 * time.Hour,
-				Frequency:          24 * time.Hour,
-				PeakHours:          &PeakHours{StartHour: 25, EndHour: 20},
-			},
-			expectError: true,
-		},
-		{
-			name: "invalid peak hours end",
-			schedule: IntelligentMaintenanceSchedule{
-				RunwayDesignations: []string{"09L"},
-				Duration:           2 * time.Hour,
-				Frequency:          24 * time.Hour,
-				PeakHours:          &PeakHours{StartHour: 8, EndHour: -1},
-			},
-			expectError: true,
-		},
-		{
 			name: "valid configuration",
 			schedule: IntelligentMaintenanceSchedule{
 				RunwayDesignations: []string{"09L"},
 				Duration:           2 * time.Hour,
 				Frequency:          24 * time.Hour,
-				PeakHours:          &PeakHours{StartHour: 8, EndHour: 20},
 			},
 			expectError: false,
 		},

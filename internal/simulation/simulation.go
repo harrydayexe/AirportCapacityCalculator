@@ -25,7 +25,6 @@ type Policy interface {
 type (
 	MaintenanceSchedule           = policy.MaintenanceSchedule
 	IntelligentMaintenanceSchedule = policy.IntelligentMaintenanceSchedule
-	PeakHours                     = policy.PeakHours
 	GateCapacityConstraint         = policy.GateCapacityConstraint
 	TaxiTimeConfiguration          = policy.TaxiTimeConfiguration
 	RotationStrategy              = policy.RotationStrategy
