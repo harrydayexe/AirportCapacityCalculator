@@ -3,6 +3,7 @@ package policy
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/harrydayexe/AirportCapacityCalculator/internal/simulation/event"
 )
@@ -17,8 +18,8 @@ const (
 	// TimeBasedRotation rotates runway usage at fixed time intervals
 	TimeBasedRotation
 
-	// BalancedRotation attempts to balance usage across all runways
-	BalancedRotation
+	// PreferentialRunway designates specific runways for noise abatement
+	PreferentialRunway
 
 	// NoiseOptimizedRotation rotates to minimize noise impact on communities
 	NoiseOptimizedRotation
@@ -31,13 +32,22 @@ func (rs RotationStrategy) String() string {
 		return "NoRotation"
 	case TimeBasedRotation:
 		return "TimeBasedRotation"
-	case BalancedRotation:
-		return "BalancedRotation"
+	case PreferentialRunway:
+		return "PreferentialRunway"
 	case NoiseOptimizedRotation:
 		return "NoiseOptimizedRotation"
 	default:
 		return "Unknown"
 	}
+}
+
+// RotationSchedule defines time-bounded windows when rotation policies apply.
+// This allows rotation to be active only during specific hours or days (e.g., weekends).
+// If nil, rotation applies for the entire simulation period.
+type RotationSchedule struct {
+	StartHour  int              // Hour of day when rotation starts (0-23)
+	EndHour    int              // Hour of day when rotation ends (0-23)
+	DaysOfWeek []time.Weekday   // Days when rotation applies (nil = all days)
 }
 
 // RotationPolicyConfiguration holds configuration for runway rotation policies.
@@ -51,7 +61,7 @@ func NewDefaultRotationPolicyConfiguration() *RotationPolicyConfiguration {
 		efficiencyMap: map[RotationStrategy]float32{
 			NoRotation:             1.0,
 			TimeBasedRotation:      0.95,
-			BalancedRotation:       0.90,
+			PreferentialRunway:     0.90,
 			NoiseOptimizedRotation: 0.80,
 		},
 	}
@@ -69,6 +79,7 @@ func NewRotationPolicyConfiguration(efficiencyMap map[RotationStrategy]float32) 
 type RunwayRotationPolicy struct {
 	strategy RotationStrategy             // The selected rotation strategy
 	config   *RotationPolicyConfiguration // Configuration for efficiency adjustments
+	schedule *RotationSchedule            // Optional time-bounded rotation schedule (nil = always active)
 }
 
 // NewRunwayRotationPolicy creates a new runway rotation policy.
@@ -84,6 +95,17 @@ func NewDefaultRunwayRotationPolicy(strategy RotationStrategy) *RunwayRotationPo
 	return &RunwayRotationPolicy{
 		strategy: strategy,
 		config:   NewDefaultRotationPolicyConfiguration(),
+		schedule: nil, // Always active
+	}
+}
+
+// NewRunwayRotationPolicyWithSchedule creates a new runway rotation policy with a time-bounded schedule.
+// The rotation will only apply during the specified time windows.
+func NewRunwayRotationPolicyWithSchedule(strategy RotationStrategy, config *RotationPolicyConfiguration, schedule *RotationSchedule) *RunwayRotationPolicy {
+	return &RunwayRotationPolicy{
+		strategy: strategy,
+		config:   config,
+		schedule: schedule,
 	}
 }
 
@@ -92,11 +114,16 @@ func (p *RunwayRotationPolicy) Name() string {
 	return fmt.Sprintf("RunwayRotationPolicy(%s)", p.strategy.String())
 }
 
-// GenerateEvents generates a rotation change event at the start of the simulation.
+// GenerateEvents generates rotation change events based on the policy configuration.
 // Different strategies affect capacity by applying efficiency multipliers.
 // Rotation strategies introduce overhead and constraints that reduce theoretical maximum capacity.
+//
+// If no schedule is provided, rotation is active for the entire simulation period.
+// If a schedule is provided, rotation change events are generated to enable/disable
+// the rotation multiplier during specified time windows.
 func (p *RunwayRotationPolicy) GenerateEvents(ctx context.Context, world EventWorld) error {
 	startTime := world.GetStartTime()
+	endTime := world.GetEndTime()
 
 	// Get efficiency multiplier based on rotation strategy
 	var efficiencyMultiplier float32
@@ -113,12 +140,12 @@ func (p *RunwayRotationPolicy) GenerateEvents(ctx context.Context, world EventWo
 		// Efficiency: 95% (5% capacity reduction)
 		efficiencyMultiplier = p.config.efficiencyMap[TimeBasedRotation]
 
-	case BalancedRotation:
-		// Balanced rotation distributes usage across all runways equally,
+	case PreferentialRunway:
+		// Preferential runway systems designate specific runways for noise abatement,
 		// which may not always align with optimal wind conditions or traffic flow.
 		// This introduces moderate efficiency penalties.
 		// Efficiency: 90% (10% capacity reduction)
-		efficiencyMultiplier = p.config.efficiencyMap[BalancedRotation]
+		efficiencyMultiplier = p.config.efficiencyMap[PreferentialRunway]
 
 	case NoiseOptimizedRotation:
 		// Noise-optimized rotation prioritizes minimizing community noise impact
@@ -131,9 +158,60 @@ func (p *RunwayRotationPolicy) GenerateEvents(ctx context.Context, world EventWo
 		return fmt.Errorf("unknown rotation strategy: %v", p.strategy)
 	}
 
-	// Schedule a rotation change event at the start of the simulation
-	// This sets the efficiency multiplier for the entire simulation period
-	world.ScheduleEvent(event.NewRotationChangeEvent(efficiencyMultiplier, startTime))
+	// If no schedule, rotation is always active
+	if p.schedule == nil {
+		// Schedule a rotation change event at the start of the simulation
+		// This sets the efficiency multiplier for the entire simulation period
+		world.ScheduleEvent(event.NewRotationChangeEvent(efficiencyMultiplier, startTime))
+		return nil
+	}
+
+	// Generate time-bounded rotation events
+	currentTime := startTime
+	for currentTime.Before(endTime) {
+		// Check if current day matches schedule
+		if p.shouldApplyOnDay(currentTime.Weekday()) {
+			// Calculate rotation start time for this day
+			rotationStart := time.Date(
+				currentTime.Year(), currentTime.Month(), currentTime.Day(),
+				p.schedule.StartHour, 0, 0, 0, currentTime.Location(),
+			)
+
+			// Calculate rotation end time for this day
+			rotationEnd := time.Date(
+				currentTime.Year(), currentTime.Month(), currentTime.Day(),
+				p.schedule.EndHour, 0, 0, 0, currentTime.Location(),
+			)
+
+			// Ensure times are within simulation bounds
+			if rotationStart.After(startTime) && rotationStart.Before(endTime) {
+				world.ScheduleEvent(event.NewRotationChangeEvent(efficiencyMultiplier, rotationStart))
+			}
+
+			if rotationEnd.After(startTime) && rotationEnd.Before(endTime) {
+				// Return to 1.0 (no rotation penalty) when rotation window ends
+				world.ScheduleEvent(event.NewRotationChangeEvent(1.0, rotationEnd))
+			}
+		}
+
+		// Move to next day
+		currentTime = currentTime.AddDate(0, 0, 1)
+	}
 
 	return nil
+}
+
+// shouldApplyOnDay checks if rotation should apply on the given weekday.
+// Returns true if DaysOfWeek is nil (applies all days) or contains the given day.
+func (p *RunwayRotationPolicy) shouldApplyOnDay(day time.Weekday) bool {
+	if p.schedule.DaysOfWeek == nil {
+		return true
+	}
+
+	for _, d := range p.schedule.DaysOfWeek {
+		if d == day {
+			return true
+		}
+	}
+	return false
 }

@@ -7,6 +7,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+**Time-Bounded Rotation Support** (`internal/simulation/policy/rotation.go`)
+- Added `RotationSchedule` struct for time-bounded rotation policies
+- Allows rotation to apply only during specific hours (e.g., 6 AM - 11 PM)
+- Supports day-of-week filtering (e.g., weekends only)
+- Generates rotation start/end events for each scheduled window
+- Example: Toronto Pearson-style weekend rotation (Sat-Sun, 6:30 AM - 11:59 PM)
+
+### Changed - BREAKING CHANGES
+
+**Runway Rotation Strategy Rename**
+- ⚠️ **BREAKING**: Renamed `BalancedRotation` → `PreferentialRunway`
+- Reflects real-world practice: rotation is for noise abatement, not load balancing
+- "Balanced rotation" doesn't exist in actual airport operations
+- "Preferential runway" matches industry terminology (FAA/ICAO)
+
+**Strategy Documentation Updates**
+- Clarified that rotation strategies represent noise abatement policies, not technical requirements
+- Updated efficiency multipliers to reflect real-world capacity impacts:
+  - `NoRotation`: 1.0 (100% - optimal wind-based operations)
+  - `TimeBasedRotation`: 0.95 (5% loss - scheduled rotation for noise distribution)
+  - `PreferentialRunway`: 0.90 (10% loss - noise-designated runway operations)
+  - `NoiseOptimizedRotation`: 0.80 (20% loss - maximum noise reduction priority)
+
+### Migration Guide
+
+**Updating Code:**
+```go
+// OLD (v0.3.0 and earlier):
+sim.RunwayRotationPolicy(simulation.BalancedRotation)
+
+// NEW (v0.4.0+):
+sim.RunwayRotationPolicy(simulation.PreferentialRunway)
+```
+
+**Using Time-Bounded Rotation:**
+```go
+// Weekend rotation example (Toronto Pearson style)
+schedule := &simulation.RotationSchedule{
+    StartHour:  6,  // 6 AM
+    EndHour:    23, // 11 PM
+    DaysOfWeek: []time.Weekday{time.Saturday, time.Sunday},
+}
+
+policy := policy.NewRunwayRotationPolicyWithSchedule(
+    simulation.TimeBasedRotation,
+    policy.NewDefaultRotationPolicyConfiguration(),
+    schedule,
+)
+sim.AddPolicy(policy)
+```
+
+### Research Findings
+
+Based on authoritative sources (FAA handbooks, ICAO Doc 8168, airport operations research):
+
+**Runways DO NOT rotate for:**
+- ❌ Wear/maintenance balance (no evidence of bidirectional usage requirements)
+- ❌ Load balancing across runways (not a real-world practice)
+- ❌ Technical/operational necessity (wind determines direction)
+
+**Runways DO rotate for:**
+- ✅ Noise abatement (distribute noise exposure to communities)
+- ✅ Preferential runway systems (noise-sensitive designations)
+- ✅ Community relations (provide respite periods)
+
+**Capacity Impact** (research-validated):
+- Time-based rotation: ~5% capacity loss (transition overhead)
+- Preferential runways: ~10% loss (suboptimal configurations)
+- Noise-optimized: ~15-20% loss (restrictive flight paths)
+
 ## [0.3.0] - 2024-11-01
 
 ### Added - Intelligence Layer

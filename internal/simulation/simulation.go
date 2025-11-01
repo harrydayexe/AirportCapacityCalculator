@@ -29,13 +29,14 @@ type (
 	GateCapacityConstraint         = policy.GateCapacityConstraint
 	TaxiTimeConfiguration          = policy.TaxiTimeConfiguration
 	RotationStrategy              = policy.RotationStrategy
+	RotationSchedule              = policy.RotationSchedule
 )
 
 // Rotation strategy constants
 const (
 	NoRotation             = policy.NoRotation
 	TimeBasedRotation      = policy.TimeBasedRotation
-	BalancedRotation       = policy.BalancedRotation
+	PreferentialRunway     = policy.PreferentialRunway
 	NoiseOptimizedRotation = policy.NoiseOptimizedRotation
 )
 

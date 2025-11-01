@@ -86,19 +86,19 @@ func main() {
 	logger.Info("Result", "capacity", int(capacity2), "strategy", "TimeBasedRotation")
 	logger.Info("")
 
-	// Scenario 3: Balanced rotation
-	logger.Info("Scenario 3: Balanced Rotation (10% capacity reduction)")
+	// Scenario 3: Preferential runway
+	logger.Info("Scenario 3: Preferential Runway (10% capacity reduction)")
 	sim3, err := simulation.NewSimulation(exampleAirport, logger).
 		AddCurfewPolicy(curfewStart, curfewEnd)
 	if err != nil {
 		panic(err)
 	}
-	sim3 = sim3.RunwayRotationPolicy(simulation.BalancedRotation)
+	sim3 = sim3.RunwayRotationPolicy(simulation.PreferentialRunway)
 	capacity3, err := sim3.Run(context.Background())
 	if err != nil {
 		panic(err)
 	}
-	logger.Info("Result", "capacity", int(capacity3), "strategy", "BalancedRotation")
+	logger.Info("Result", "capacity", int(capacity3), "strategy", "PreferentialRunway")
 	logger.Info("")
 
 	// Scenario 4: Noise-optimized rotation
@@ -119,11 +119,11 @@ func main() {
 	logger.Info("=== Capacity Comparison ===")
 	logger.Info("NoRotation Capacity", "capacity", int(capacity1))
 	logger.Info("TimeBasedRotation Capacity", "capacity", int(capacity2))
-	logger.Info("BalancedRotation Capacity", "capacity", int(capacity3))
+	logger.Info("PreferentialRunway Capacity", "capacity", int(capacity3))
 	logger.Info("NoiseOptimizedRotation Capacity", "capacity", int(capacity4))
 	logger.Info("")
 	logger.Info("=== Impact Analysis ===")
 	logger.Info("TimeBasedRotation Reduction", "reduction", int(capacity1-capacity2))
-	logger.Info("BalancedRotation Reduction", "reduction", int(capacity1-capacity3))
+	logger.Info("PreferentialRunway Reduction", "reduction", int(capacity1-capacity3))
 	logger.Info("NoiseOptimizedRotation Reduction", "reduction", int(capacity1-capacity4))
 }
