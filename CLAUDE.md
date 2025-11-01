@@ -74,11 +74,10 @@ The domain is organized around aviation concepts:
    - Intended to aggregate runways and calculate capacity
 
 2. **Runway** (`internal/airport/runway`): Represents physical runways
-   - `RunwayDesigntation`: Runway identifier (e.g., "09L", "27R")
+   - `RunwayDesignation`: Runway identifier (e.g., "09L", "27R")
    - `TrueBearing`: Runway direction in degrees
    - `LengthMeters`: Physical runway length
-
-Note: The runway package currently has a typo in the field name "RunwayDesigntation" that should be "RunwayDesignation".
+   - `MinimumSeparation`: Per-runway minimum separation time between operations
 
 ### Design Principles
 

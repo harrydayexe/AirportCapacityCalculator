@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+**Documentation**
+- Corrected outdated documentation in CLAUDE.md that incorrectly stated `RunwayDesigntation` field had a typo (field was already correctly named `RunwayDesignation`)
+- Added `MinimumSeparation` field to Runway documentation in CLAUDE.md
+
 ### Major: Event-Driven Simulation Engine Redesign
 
 Complete architectural redesign from formula-based aggregate calculations to event-driven state-window simulation.
