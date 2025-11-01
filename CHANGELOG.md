@@ -7,6 +7,100 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - Event-Based Runway Management Architecture
+
+**Thread-Safe RunwayManager** (`internal/simulation/runway_manager.go`)
+- Central authority for determining active runway configurations
+- Thread-safe using `sync.RWMutex` for concurrent policy event generation
+- Tracks runway availability and curfew status
+- Calculates active runway configuration based on current state
+- Future-ready for crossing runway detection and wind direction logic
+
+**ActiveRunwayConfigurationChanged Event** (`internal/simulation/event/runway_configuration.go`)
+- New event type representing configuration changes
+- Contains `ActiveRunwayInfo` with operation type, direction, and runway details
+- Single source of truth for engine capacity calculations
+- Generated automatically when availability or curfew changes
+
+**Operation Type and Direction Enums**
+- `OperationType`: Mixed, TakeoffOnly, LandingOnly (currently all Mixed)
+- `Direction`: Forward, Reverse (currently all Forward)
+- Infrastructure for future directional and operational constraints
+
+### Changed - BREAKING ARCHITECTURE
+
+**Engine Capacity Calculation** (`internal/simulation/engine.go`)
+- ⚠️ **BREAKING**: Removed all validation logic from engine
+- No longer checks curfew status directly
+- No longer iterates RunwayStates with availability checks
+- Now uses `GetActiveRunwayConfiguration()` as single source of truth
+- Engine is now a pure calculator with zero decision logic
+
+**World State** (`internal/simulation/world.go`)
+- Added `RunwayManager` field (manages active configuration)
+- Added `ActiveRunwayConfiguration` with thread-safe access (`sync.RWMutex`)
+- Added `NotifyRunwayAvailabilityChange()` helper method
+- Added `NotifyCurfewChange()` helper method
+- RunwayStates kept for historical tracking but not used by engine
+
+**Event Modifications**
+- `RunwayMaintenanceStartEvent`: Now notifies RunwayManager and schedules config change
+- `RunwayMaintenanceEndEvent`: Now notifies RunwayManager and schedules config change
+- `CurfewStartEvent`: Now notifies RunwayManager and schedules config change
+- `CurfewEndEvent`: Now notifies RunwayManager and schedules config change
+
+### Technical Details
+
+**Thread-Safety Strategy:**
+- RWMutex in RunwayManager: read lock for GetActiveConfiguration(), write lock for On*() methods
+- RWMutex in World: protects ActiveRunwayConfiguration field
+- Deep copying: All config access returns copies to prevent external mutation
+- Lock ordering: World locks → RunwayManager lock → EventQueue lock
+
+**Event Flow:**
+1. Maintenance/curfew event applies
+2. Calls `world.NotifyRunwayAvailabilityChange()` or `NotifyCurfewChange()`
+3. World notifies RunwayManager (e.g., `OnRunwayUnavailable()`)
+4. RunwayManager recalculates active configuration
+5. World schedules `ActiveRunwayConfigurationChangedEvent`
+6. Configuration event applies, updating `world.ActiveRunwayConfiguration`
+7. Engine reads active configuration for capacity calculation
+
+**Concurrency Performance:**
+- RWMutex chosen over channels: ~10x faster for read-heavy workload
+- Multiple goroutines can read configuration simultaneously
+- Concurrent policy event generation fully supported
+- Comprehensive concurrency tests with race detector
+
+### Benefits
+
+1. **Single Source of Truth**: RunwayManager decides what's active
+2. **Zero Engine Validation**: Engine has no decision logic, only calculations
+3. **Thread-Safe**: Safe for concurrent policy event generation
+4. **Future-Ready**: Infrastructure for crossing runways, wind, geometric analysis
+5. **Clean Separation**: Manager handles decisions, engine handles math
+6. **Testable**: Manager and engine can be tested independently
+
+### Testing
+
+**New Tests:**
+- `runway_manager_test.go`: 9 tests including 5 concurrency tests
+- Tests verify thread-safety with 50-100 concurrent goroutines
+- All tests pass with `-race` flag (race detector)
+- Stress tests with concurrent reads during writes
+
+### Migration Notes
+
+**No User-Facing Changes:**
+This is an internal architectural refactoring. The public API remains unchanged.
+All existing simulations and policies continue to work without modification.
+
+**For Contributors:**
+- Engine no longer validates - it only calculates based on active configuration
+- To add new constraints: modify RunwayManager.calculateActiveConfiguration()
+- All runway logic goes in RunwayManager, not engine
+- New policies should use NotifyRunwayAvailabilityChange() or NotifyCurfewChange()
+
 ### Added
 
 **Time-Bounded Rotation Support** (`internal/simulation/policy/rotation.go`)

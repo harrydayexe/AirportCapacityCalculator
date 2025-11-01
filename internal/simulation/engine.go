@@ -72,6 +72,7 @@ func (e *Engine) processTimeline(ctx context.Context, world *World) (float32, er
 
 		// Calculate capacity for window [previousEventTime, eventTime]
 		windowDuration := eventTime.Sub(previousEventTime)
+		// TODO: What happens if duration is 0. Probably just skip window calculation?
 		windowCapacity := e.calculateWindowCapacity(ctx, world, windowDuration)
 
 		e.logger.DebugContext(ctx, "Window capacity calculated",
@@ -121,25 +122,30 @@ func (e *Engine) processTimeline(ctx context.Context, world *World) (float32, er
 }
 
 // calculateWindowCapacity calculates the theoretical maximum capacity for a time window
-// given the current world state (runway availability, curfew, rotation multiplier).
+// using the active runway configuration (single source of truth from RunwayManager).
+// No validation logic here - the active configuration already accounts for:
+// - Curfew status (empty config during curfew)
+// - Runway availability (maintenance, etc.)
+// - Future: crossing runways, wind direction, etc.
 func (e *Engine) calculateWindowCapacity(ctx context.Context, world *World, duration time.Duration) float32 {
-	// If curfew is active, no operations are possible
-	if world.CurfewActive {
-		return 0
-	}
-
 	durationSeconds := float32(duration.Seconds())
 	capacity := float32(0)
 
-	// Sum capacity across all available runways
-	for _, runwayState := range world.RunwayStates {
-		if !runwayState.Available {
-			continue
-		}
+	// Get active runway configuration (single source of truth)
+	activeRunways := world.GetActiveRunwayConfiguration()
 
-		separationSeconds := float32(runwayState.Runway.MinimumSeparation.Seconds())
+	// If no active runways (e.g., during curfew or all under maintenance), capacity is zero
+	if len(activeRunways) == 0 {
+		return 0
+	}
+
+	// Sum capacity across all active runways
+	for _, activeRunway := range activeRunways {
+		separationSeconds := float32(activeRunway.Runway.MinimumSeparation.Seconds())
 
 		// Runway capacity = duration / separation
+		// TODO: In future, adjust based on OperationType (TakeoffOnly, LandingOnly vs Mixed)
+		// TODO: In future, adjust based on Direction (Forward vs Reverse may have different characteristics)
 		runwayCapacity := durationSeconds / separationSeconds
 		capacity += runwayCapacity
 	}

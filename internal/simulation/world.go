@@ -5,6 +5,7 @@ package simulation
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/harrydayexe/AirportCapacityCalculator/internal/airport"
@@ -28,8 +29,13 @@ type World struct {
 	Events *event.EventQueue // Priority queue of events ordered chronologically
 
 	// Operational state
-	RunwayStates map[string]*RunwayState // Per-runway availability and configuration
+	RunwayStates map[string]*RunwayState // Per-runway availability and configuration (legacy, for historical tracking)
 	CurfewActive bool                    // Whether airport curfew is currently in effect
+
+	// Runway management (single source of truth for active runways)
+	RunwayManager            *RunwayManager                          // Manages runway availability and active configuration
+	activeConfigMu           sync.RWMutex                            // Protects ActiveRunwayConfiguration
+	ActiveRunwayConfiguration map[string]*event.ActiveRunwayInfo     // Current active runway configuration
 
 	// Capacity modifiers
 	RotationMultiplier     float32       // Efficiency multiplier from runway rotation strategy (1.0 = no penalty)
@@ -79,6 +85,12 @@ func NewWorld(airport airport.Airport, startTime, endTime time.Time) *World {
 			Available: true,
 		}
 	}
+
+	// Initialize runway manager (single source of truth for active runways)
+	world.RunwayManager = NewRunwayManager(airport.Runways)
+
+	// Set initial active runway configuration (all runways available)
+	world.ActiveRunwayConfiguration = world.RunwayManager.GetActiveConfiguration()
 
 	return world
 }
@@ -228,4 +240,81 @@ func (w *World) GetRunwayIDs() []string {
 		ids = append(ids, id)
 	}
 	return ids
+}
+
+// SetActiveRunwayConfiguration sets the active runway configuration.
+// This is the single source of truth for which runways the engine should use
+// for capacity calculations. Stores a copy to prevent external mutation.
+//
+// Thread-safe: Uses write lock.
+func (w *World) SetActiveRunwayConfiguration(config map[string]*event.ActiveRunwayInfo) error {
+	w.activeConfigMu.Lock()
+	defer w.activeConfigMu.Unlock()
+
+	// Store a copy to prevent external mutation
+	w.ActiveRunwayConfiguration = make(map[string]*event.ActiveRunwayInfo, len(config))
+	for k, v := range config {
+		// Deep copy the struct
+		infoCopy := *v
+		w.ActiveRunwayConfiguration[k] = &infoCopy
+	}
+
+	return nil
+}
+
+// GetActiveRunwayConfiguration returns the current active runway configuration.
+// Returns a copy to prevent external mutation of internal state.
+//
+// Thread-safe: Uses read lock.
+func (w *World) GetActiveRunwayConfiguration() map[string]*event.ActiveRunwayInfo {
+	w.activeConfigMu.RLock()
+	defer w.activeConfigMu.RUnlock()
+
+	// Return a copy to prevent external mutation
+	config := make(map[string]*event.ActiveRunwayInfo, len(w.ActiveRunwayConfiguration))
+	for k, v := range w.ActiveRunwayConfiguration {
+		// Deep copy the struct
+		infoCopy := *v
+		config[k] = &infoCopy
+	}
+
+	return config
+}
+
+// NotifyRunwayAvailabilityChange notifies the RunwayManager of a runway availability change
+// and schedules an ActiveRunwayConfigurationChangedEvent with the new configuration.
+// This ensures the active runway configuration is updated and the engine uses the correct runways.
+func (w *World) NotifyRunwayAvailabilityChange(runwayID string, available bool, timestamp time.Time) error {
+	// Notify the runway manager
+	if available {
+		w.RunwayManager.OnRunwayAvailable(runwayID)
+	} else {
+		w.RunwayManager.OnRunwayUnavailable(runwayID)
+	}
+
+	// Get the new active configuration from the manager
+	newConfig := w.RunwayManager.GetActiveConfiguration()
+
+	// Schedule an event to update the world's active configuration
+	configEvent := event.NewActiveRunwayConfigurationChangedEvent(newConfig, timestamp)
+	w.ScheduleEvent(configEvent)
+
+	return nil
+}
+
+// NotifyCurfewChange notifies the RunwayManager of a curfew status change
+// and schedules an ActiveRunwayConfigurationChangedEvent with the new configuration.
+// During curfew, the configuration will be empty (no active runways).
+func (w *World) NotifyCurfewChange(active bool, timestamp time.Time) error {
+	// Notify the runway manager
+	w.RunwayManager.OnCurfewChanged(active)
+
+	// Get the new active configuration from the manager
+	newConfig := w.RunwayManager.GetActiveConfiguration()
+
+	// Schedule an event to update the world's active configuration
+	configEvent := event.NewActiveRunwayConfigurationChangedEvent(newConfig, timestamp)
+	w.ScheduleEvent(configEvent)
+
+	return nil
 }

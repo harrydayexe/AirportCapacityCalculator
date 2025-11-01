@@ -27,10 +27,14 @@ func (e *CurfewStartEvent) Type() EventType {
 	return CurfewStartType
 }
 
-// Apply activates the curfew, preventing any operations.
+// Apply activates the curfew and triggers runway configuration recalculation.
+// During curfew, no runways will be active.
 func (e *CurfewStartEvent) Apply(ctx context.Context, world WorldState) error {
+	// Update curfew status (for historical tracking)
 	world.SetCurfewActive(true)
-	return nil
+
+	// Notify RunwayManager and schedule configuration change event (will be empty config)
+	return world.NotifyCurfewChange(true, e.timestamp)
 }
 
 // CurfewEndEvent represents the end of a curfew period when operations may resume.
@@ -55,8 +59,12 @@ func (e *CurfewEndEvent) Type() EventType {
 	return CurfewEndType
 }
 
-// Apply deactivates the curfew, allowing operations to resume.
+// Apply deactivates the curfew and triggers runway configuration recalculation.
+// Available runways will become active again.
 func (e *CurfewEndEvent) Apply(ctx context.Context, world WorldState) error {
+	// Update curfew status (for historical tracking)
 	world.SetCurfewActive(false)
-	return nil
+
+	// Notify RunwayManager and schedule configuration change event (will restore available runways)
+	return world.NotifyCurfewChange(false, e.timestamp)
 }

@@ -43,6 +43,9 @@ const (
 
 	// TaxiTimeAdjustmentType indicates taxi time overhead is being applied
 	TaxiTimeAdjustmentType
+
+	// ActiveRunwayConfigurationChangedType indicates the active runway configuration has changed
+	ActiveRunwayConfigurationChangedType
 )
 
 // String returns the string representation of the event type
@@ -62,6 +65,8 @@ func (et EventType) String() string {
 		return "GateCapacityConstraint"
 	case TaxiTimeAdjustmentType:
 		return "TaxiTimeAdjustment"
+	case ActiveRunwayConfigurationChangedType:
+		return "ActiveRunwayConfigurationChanged"
 	default:
 		return "Unknown"
 	}
@@ -99,4 +104,18 @@ type WorldState interface {
 
 	// GetTaxiTimeOverhead returns the taxi time overhead (0 means no overhead)
 	GetTaxiTimeOverhead() time.Duration
+
+	// SetActiveRunwayConfiguration sets the active runway configuration (single source of truth)
+	SetActiveRunwayConfiguration(config map[string]*ActiveRunwayInfo) error
+
+	// GetActiveRunwayConfiguration returns the active runway configuration
+	GetActiveRunwayConfiguration() map[string]*ActiveRunwayInfo
+
+	// NotifyRunwayAvailabilityChange notifies the runway manager of availability changes
+	// and schedules an ActiveRunwayConfigurationChangedEvent
+	NotifyRunwayAvailabilityChange(runwayID string, available bool, timestamp time.Time) error
+
+	// NotifyCurfewChange notifies the runway manager of curfew changes
+	// and schedules an ActiveRunwayConfigurationChangedEvent
+	NotifyCurfewChange(active bool, timestamp time.Time) error
 }
