@@ -4,6 +4,7 @@ package simulation
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/harrydayexe/AirportCapacityCalculator/internal/airport"
@@ -80,15 +81,41 @@ func (s *Simulation) Run(ctx context.Context) (float32, error) {
 		"startTime", startTime,
 		"endTime", endTime)
 
-	// Let policies generate events
+	// Let policies generate events concurrently
+	s.logger.InfoContext(ctx, "Generating events from policies",
+		"policyCount", len(s.policies))
+
+	var wg sync.WaitGroup
+	var errMu sync.Mutex
+	var firstErr error
+
 	for _, policy := range s.policies {
-		s.logger.InfoContext(ctx, "Generating events for policy", "policy", policy.Name())
-		if err := policy.GenerateEvents(ctx, world); err != nil {
-			s.logger.ErrorContext(ctx, "Failed to generate events",
-				"policy", policy.Name(),
-				"error", err)
-			return 0, err
-		}
+		wg.Add(1)
+		go func(p Policy) {
+			defer wg.Done()
+
+			s.logger.InfoContext(ctx, "Generating events for policy", "policy", p.Name())
+			if err := p.GenerateEvents(ctx, world); err != nil {
+				s.logger.ErrorContext(ctx, "Failed to generate events",
+					"policy", p.Name(),
+					"error", err)
+
+				// Capture first error only
+				errMu.Lock()
+				if firstErr == nil {
+					firstErr = err
+				}
+				errMu.Unlock()
+			}
+		}(policy)
+	}
+
+	// Wait for all policies to complete
+	wg.Wait()
+
+	// Check if any policy failed
+	if firstErr != nil {
+		return 0, firstErr
 	}
 
 	s.logger.InfoContext(ctx, "Events generated",

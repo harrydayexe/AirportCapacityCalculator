@@ -2,12 +2,15 @@ package event
 
 import (
 	"container/heap"
+	"sync"
 )
 
 // EventQueue is a priority queue of events ordered by time.
 // Events are processed chronologically from earliest to latest.
+// This queue is safe for concurrent use by multiple goroutines.
 type EventQueue struct {
 	items *eventHeap
+	mu    sync.Mutex
 }
 
 // NewEventQueue creates a new empty event queue.
@@ -20,13 +23,19 @@ func NewEventQueue() *EventQueue {
 }
 
 // Push adds an event to the queue.
+// This method is safe for concurrent use.
 func (q *EventQueue) Push(event Event) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
 	heap.Push(q.items, event)
 }
 
 // Pop removes and returns the earliest event from the queue.
 // Returns nil if the queue is empty.
+// This method is safe for concurrent use.
 func (q *EventQueue) Pop() Event {
+	q.mu.Lock()
+	defer q.mu.Unlock()
 	if q.items.Len() == 0 {
 		return nil
 	}
@@ -35,7 +44,10 @@ func (q *EventQueue) Pop() Event {
 
 // Peek returns the earliest event without removing it.
 // Returns nil if the queue is empty.
+// This method is safe for concurrent use.
 func (q *EventQueue) Peek() Event {
+	q.mu.Lock()
+	defer q.mu.Unlock()
 	if q.items.Len() == 0 {
 		return nil
 	}
@@ -43,12 +55,18 @@ func (q *EventQueue) Peek() Event {
 }
 
 // Len returns the number of events in the queue.
+// This method is safe for concurrent use.
 func (q *EventQueue) Len() int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
 	return q.items.Len()
 }
 
 // HasNext returns true if there are more events in the queue.
+// This method is safe for concurrent use.
 func (q *EventQueue) HasNext() bool {
+	q.mu.Lock()
+	defer q.mu.Unlock()
 	return q.items.Len() > 0
 }
 
