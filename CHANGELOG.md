@@ -7,11 +7,105 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2024-11-01
+
+### Added - Intelligence Layer
+
+**Intelligent Maintenance Scheduling** (`internal/simulation/policy/intelligent_maintenance.go`)
+- Curfew-aware maintenance scheduling (prefers maintenance during operational downtime)
+- Peak hours avoidance configuration
+- Runway coordination (ensures minimum runways remain operational)
+- Automatic staggering of maintenance across runway fleet
+- Reduces capacity impact by optimizing when maintenance occurs
+
+**Gate Capacity Constraints** (`internal/simulation/policy/gate_capacity.go`)
+- Models limitation that gates place on sustained throughput
+- Calculates maximum sustainable movements based on gates and turnaround time
+- Formula: `sustained_capacity = (gates / turnaround_time) × 2`
+- Automatic capacity capping when gates are more restrictive than runways
+- Integrates with event-driven engine for accurate bottleneck modeling
+
+**Taxi Time Modeling** (`internal/simulation/policy/taxi_time.go`)
+- Models impact of taxi time on sustained capacity
+- Configurable taxi-in and taxi-out times
+- Adjusts effective gate capacity based on taxi overhead
+- Accounts for additional time aircraft spend at airport beyond gate occupancy
+- Formula: `effective_capacity = gates / (turnaround + taxi_overhead)`
+
+### Changed
+
+**Engine Capacity Calculation**
+- Added gate capacity constraint handling in `calculateWindowCapacity()`
+- Taxi time overhead integrated with gate capacity calculations
+- Capacity now respects multiple bottlenecks (runways, gates, taxi time)
+
+**World State**
+- Added `GateCapacityConstraint` field (max movements/second limited by gates)
+- Added `TaxiTimeOverhead` field (total taxi time per aircraft cycle)
+- Added getter/setter methods for new state fields
+
+**Event System**
+- Added `GateCapacityConstraintType` event type
+- Added `TaxiTimeAdjustmentType` event type
+- Added `GateCapacityConstraintEvent` implementation
+- Added `TaxiTimeAdjustmentEvent` implementation
+
 ### Fixed
 
 **Documentation**
 - Corrected outdated documentation in CLAUDE.md that incorrectly stated `RunwayDesigntation` field had a typo (field was already correctly named `RunwayDesignation`)
 - Added `MinimumSeparation` field to Runway documentation in CLAUDE.md
+- Added project binary to `.gitignore` to prevent build artifacts in repository
+
+### Technical Details
+
+**Intelligent Maintenance Scheduling Algorithm:**
+1. Try to schedule during curfew (if maintenance fits entirely within curfew)
+2. Try to schedule adjacent to curfew start (maintenance ends when curfew starts)
+3. Try to schedule adjacent to curfew end (maintenance starts when curfew ends)
+4. Avoid peak hours if configured
+5. Ensure minimum operational runways maintained at all times
+6. Stagger maintenance across runways (offset start times)
+
+**Gate Capacity Impact:**
+- If runways can handle 100 movements/hour but gates only support 60 movements/hour, capacity is capped at 60
+- Taxi time overhead reduces effective gate capacity by extending aircraft dwell time
+
+**Performance:**
+- All new policies use event generation pattern (no runtime state modification)
+- Minimal performance overhead from additional constraint checks
+- Capacity calculations remain O(n) where n = number of state-changing events
+
+### Migration Notes
+
+**Using New Policies:**
+```go
+// Intelligent maintenance scheduling
+sim, err := simulation.NewSimulation(airport, logger).
+    AddIntelligentMaintenancePolicy(simulation.IntelligentMaintenanceSchedule{
+        RunwayDesignations:       []string{"09L", "09R"},
+        Duration:                 4 * time.Hour,
+        Frequency:                30 * 24 * time.Hour,
+        MinimumOperationalRunways: 1,
+        CurfewStart:              &curfewStart,
+        CurfewEnd:                &curfewEnd,
+        PeakHours:                &simulation.PeakHours{StartHour: 6, EndHour: 22},
+    })
+
+// Gate capacity constraints
+sim, err = sim.AddGateCapacityPolicy(simulation.GateCapacityConstraint{
+    TotalGates:            50,
+    AverageTurnaroundTime: 2 * time.Hour,
+})
+
+// Taxi time modeling
+sim, err = sim.AddTaxiTimePolicy(simulation.TaxiTimeConfiguration{
+    AverageTaxiInTime:  5 * time.Minute,
+    AverageTaxiOutTime: 5 * time.Minute,
+})
+```
+
+## [0.2.0] - 2024-10-31
 
 ### Major: Event-Driven Simulation Engine Redesign
 
