@@ -149,8 +149,31 @@ func (e *Engine) calculateWindowCapacity(ctx context.Context, world *World, dura
 
 	// Apply gate capacity constraint if present
 	if world.GateCapacityConstraint > 0 {
-		// Gate constraint is in movements per second, convert to movements for this duration
-		gateConstrainedCapacity := world.GateCapacityConstraint * durationSeconds
+		// Gate constraint is in movements per second
+		effectiveGateConstraint := world.GateCapacityConstraint
+
+		// If taxi time overhead is configured, adjust gate capacity
+		if world.TaxiTimeOverhead > 0 {
+			// Taxi time extends the effective turnaround time, reducing sustainable capacity
+			// For example: if base constraint allows 50 mvmt/hour (1 mvmt/72s)
+			// and taxi adds 10 min (600s) overhead, effective becomes 1 mvmt/(72s+600s)
+
+			// Calculate movements per second with taxi overhead
+			// Original: 1 movement per X seconds
+			// With taxi: 1 movement per (X + taxi_overhead) seconds
+			baseSecondsPerMovement := float32(1.0) / effectiveGateConstraint
+			taxiOverheadSeconds := float32(world.TaxiTimeOverhead.Seconds())
+			adjustedSecondsPerMovement := baseSecondsPerMovement + taxiOverheadSeconds
+			effectiveGateConstraint = 1.0 / adjustedSecondsPerMovement
+
+			e.logger.DebugContext(ctx, "Taxi time overhead applied to gate capacity",
+				"baseGateConstraint", world.GateCapacityConstraint,
+				"effectiveGateConstraint", effectiveGateConstraint,
+				"taxiOverhead", world.TaxiTimeOverhead)
+		}
+
+		// Convert to movements for this duration
+		gateConstrainedCapacity := effectiveGateConstraint * durationSeconds
 
 		// Take the minimum of runway capacity and gate-constrained capacity
 		if gateConstrainedCapacity < capacity {

@@ -23,7 +23,8 @@ type World struct {
 	RunwayStates             map[string]*RunwayState
 	CurfewActive             bool
 	RotationMultiplier       float32
-	GateCapacityConstraint   float32 // Max movements/second limited by gates (0 = no limit)
+	GateCapacityConstraint   float32       // Max movements/second limited by gates (0 = no limit)
+	TaxiTimeOverhead         time.Duration // Total taxi time overhead per cycle (0 = no overhead)
 
 	// Statistics
 	TotalCapacity float32
@@ -115,6 +116,20 @@ func (w *World) SetGateCapacityConstraint(maxMovementsPerSecond float32) error {
 // GetGateCapacityConstraint returns the gate capacity constraint (0 means no constraint).
 func (w *World) GetGateCapacityConstraint() float32 {
 	return w.GateCapacityConstraint
+}
+
+// SetTaxiTimeOverhead sets the total taxi time overhead per aircraft cycle.
+func (w *World) SetTaxiTimeOverhead(overhead time.Duration) error {
+	if overhead < 0 {
+		return fmt.Errorf("taxi time overhead cannot be negative: %v", overhead)
+	}
+	w.TaxiTimeOverhead = overhead
+	return nil
+}
+
+// GetTaxiTimeOverhead returns the taxi time overhead (0 means no overhead).
+func (w *World) GetTaxiTimeOverhead() time.Duration {
+	return w.TaxiTimeOverhead
 }
 
 // GetAvailableRunways returns a slice of currently available runways.

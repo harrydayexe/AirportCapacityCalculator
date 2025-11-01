@@ -27,6 +27,7 @@ type (
 	IntelligentMaintenanceSchedule = policy.IntelligentMaintenanceSchedule
 	PeakHours                     = policy.PeakHours
 	GateCapacityConstraint         = policy.GateCapacityConstraint
+	TaxiTimeConfiguration          = policy.TaxiTimeConfiguration
 	RotationStrategy              = policy.RotationStrategy
 )
 
@@ -136,6 +137,16 @@ func (s *Simulation) AddIntelligentMaintenancePolicy(schedule IntelligentMainten
 // based on available gates and aircraft turnaround time.
 func (s *Simulation) AddGateCapacityPolicy(constraint GateCapacityConstraint) (*Simulation, error) {
 	p, err := policy.NewGateCapacityPolicy(constraint)
+	if err != nil {
+		return nil, err
+	}
+	return s.AddPolicy(p), nil
+}
+
+// AddTaxiTimePolicy adds taxi time overhead that extends effective turnaround time
+// and reduces sustainable capacity. Taxi time includes both taxi-in and taxi-out time.
+func (s *Simulation) AddTaxiTimePolicy(config TaxiTimeConfiguration) (*Simulation, error) {
+	p, err := policy.NewTaxiTimePolicy(config)
 	if err != nil {
 		return nil, err
 	}

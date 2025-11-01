@@ -40,6 +40,9 @@ const (
 
 	// GateCapacityConstraintType indicates a gate capacity constraint is applied
 	GateCapacityConstraintType
+
+	// TaxiTimeAdjustmentType indicates taxi time overhead is being applied
+	TaxiTimeAdjustmentType
 )
 
 // String returns the string representation of the event type
@@ -57,6 +60,8 @@ func (et EventType) String() string {
 		return "RotationChange"
 	case GateCapacityConstraintType:
 		return "GateCapacityConstraint"
+	case TaxiTimeAdjustmentType:
+		return "TaxiTimeAdjustment"
 	default:
 		return "Unknown"
 	}
@@ -88,4 +93,10 @@ type WorldState interface {
 
 	// GetGateCapacityConstraint returns the gate capacity constraint (0 means no constraint)
 	GetGateCapacityConstraint() float32
+
+	// SetTaxiTimeOverhead sets the total taxi time overhead per aircraft cycle
+	SetTaxiTimeOverhead(overhead time.Duration) error
+
+	// GetTaxiTimeOverhead returns the taxi time overhead (0 means no overhead)
+	GetTaxiTimeOverhead() time.Duration
 }
