@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/harrydayexe/AirportCapacityCalculator/internal/simulation/event"
+	"slices"
 )
 
 // MaintenanceSchedule defines a maintenance schedule for runways.
@@ -51,13 +52,7 @@ func (p *MaintenancePolicy) GenerateEvents(ctx context.Context, world EventWorld
 	// Generate maintenance events for each specified runway
 	for _, runwayDesignation := range p.schedule.RunwayDesignations {
 		// Verify runway exists
-		runwayExists := false
-		for _, id := range allRunwayIDs {
-			if id == runwayDesignation {
-				runwayExists = true
-				break
-			}
-		}
+		runwayExists := slices.Contains(allRunwayIDs, runwayDesignation)
 
 		if !runwayExists {
 			return fmt.Errorf("runway %s not found in airport", runwayDesignation)
@@ -65,7 +60,7 @@ func (p *MaintenancePolicy) GenerateEvents(ctx context.Context, world EventWorld
 
 		// Schedule maintenance windows evenly across the year
 		currentTime := startTime
-		for i := 0; i < maintenanceWindows; i++ {
+		for range maintenanceWindows {
 			// Schedule maintenance start event
 			maintenanceStart := currentTime
 			if maintenanceStart.Before(endTime) {
