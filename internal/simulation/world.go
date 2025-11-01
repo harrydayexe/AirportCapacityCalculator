@@ -1,3 +1,6 @@
+// Package simulation provides the world state container and management for event-driven simulations.
+// The World tracks all simulation state including runway availability, operational constraints,
+// and capacity modifiers that affect the theoretical maximum throughput calculation.
 package simulation
 
 import (
@@ -9,34 +12,53 @@ import (
 )
 
 // World represents the complete state of the simulation at any point in time.
-// It tracks runway availability, curfew status, and rotation efficiency.
+// It tracks runway availability, curfew status, rotation efficiency, gate constraints,
+// and taxi time overhead. The World is the central state container that events modify
+// during the simulation to affect capacity calculations.
 type World struct {
-	Airport     airport.Airport
-	StartTime   time.Time
-	EndTime     time.Time
-	CurrentTime time.Time
+	// Airport configuration
+	Airport airport.Airport // The airport being simulated
 
-	// Event queue for chronological processing
-	Events *event.EventQueue
+	// Time boundaries
+	StartTime   time.Time // Simulation start time
+	EndTime     time.Time // Simulation end time
+	CurrentTime time.Time // Current simulation time (updated as events are processed)
 
-	// System state
-	RunwayStates             map[string]*RunwayState
-	CurfewActive             bool
-	RotationMultiplier       float32
-	GateCapacityConstraint   float32       // Max movements/second limited by gates (0 = no limit)
-	TaxiTimeOverhead         time.Duration // Total taxi time overhead per cycle (0 = no overhead)
+	// Event processing
+	Events *event.EventQueue // Priority queue of events ordered chronologically
 
-	// Statistics
-	TotalCapacity float32
+	// Operational state
+	RunwayStates map[string]*RunwayState // Per-runway availability and configuration
+	CurfewActive bool                    // Whether airport curfew is currently in effect
+
+	// Capacity modifiers
+	RotationMultiplier     float32       // Efficiency multiplier from runway rotation strategy (1.0 = no penalty)
+	GateCapacityConstraint float32       // Max movements/second limited by gates (0 = no constraint)
+	TaxiTimeOverhead       time.Duration // Total taxi time overhead per aircraft cycle (0 = no overhead)
+
+	// Metrics
+	TotalCapacity float32 // Accumulated total capacity (movements) calculated so far
 }
 
-// RunwayState tracks a single runway's availability and operational parameters.
+// RunwayState tracks a single runway's operational status and configuration.
+// Each runway in the airport has its own state that can be modified by events
+// (e.g., maintenance makes runway unavailable).
 type RunwayState struct {
-	Runway    airport.Runway
-	Available bool
+	Runway    airport.Runway // The runway's configuration (designation, separation, etc.)
+	Available bool           // Whether the runway is currently available for operations
 }
 
-// NewWorld creates a new simulation world initialized with an airport.
+// NewWorld creates a new simulation world initialized with an airport and time boundaries.
+//
+// The world is initialized with default values:
+//   - All runways are available
+//   - No curfew is active
+//   - RotationMultiplier is 1.0 (no efficiency penalty)
+//   - GateCapacityConstraint is 0 (no gate limitation)
+//   - TaxiTimeOverhead is 0 (no taxi time impact)
+//   - Empty event queue
+//
+// Policies will later modify these defaults by generating events that change the world state.
 func NewWorld(airport airport.Airport, startTime, endTime time.Time) *World {
 	world := &World{
 		Airport:            airport,
@@ -50,30 +72,36 @@ func NewWorld(airport airport.Airport, startTime, endTime time.Time) *World {
 		TotalCapacity:      0,
 	}
 
-	// Initialize runway states
+	// Initialize runway states - all runways start available
 	for _, runway := range airport.Runways {
 		world.RunwayStates[runway.RunwayDesignation] = &RunwayState{
 			Runway:    runway,
-			Available: true, // All runways start available
+			Available: true,
 		}
 	}
 
 	return world
 }
 
-// Implement WorldState interface for event processing
+// Implement WorldState interface for event processing.
+// These methods are called by events when they are applied to the world state.
 
-// SetCurfewActive sets whether curfew is currently active.
+// SetCurfewActive sets whether airport curfew is currently in effect.
+// Called by CurfewStartEvent (sets true) and CurfewEndEvent (sets false).
+// When true, the engine will calculate zero capacity for the affected time window.
 func (w *World) SetCurfewActive(active bool) {
 	w.CurfewActive = active
 }
 
-// GetCurfewActive returns whether curfew is currently active.
+// GetCurfewActive returns whether airport curfew is currently in effect.
 func (w *World) GetCurfewActive() bool {
 	return w.CurfewActive
 }
 
-// SetRunwayAvailable marks a runway as available or unavailable.
+// SetRunwayAvailable marks a runway as available or unavailable for operations.
+// Called by RunwayMaintenanceStartEvent (sets false) and RunwayMaintenanceEndEvent (sets true).
+// Unavailable runways are excluded from capacity calculations.
+// Returns an error if the runway ID is not found in the airport configuration.
 func (w *World) SetRunwayAvailable(runwayID string, available bool) error {
 	state, exists := w.RunwayStates[runwayID]
 	if !exists {
@@ -84,7 +112,8 @@ func (w *World) SetRunwayAvailable(runwayID string, available bool) error {
 	return nil
 }
 
-// GetRunwayAvailable checks if a runway is currently available.
+// GetRunwayAvailable checks if a runway is currently available for operations.
+// Returns an error if the runway ID is not found in the airport configuration.
 func (w *World) GetRunwayAvailable(runwayID string) (bool, error) {
 	state, exists := w.RunwayStates[runwayID]
 	if !exists {
@@ -94,17 +123,24 @@ func (w *World) GetRunwayAvailable(runwayID string) (bool, error) {
 	return state.Available, nil
 }
 
-// SetRotationMultiplier sets the current rotation efficiency multiplier.
+// SetRotationMultiplier sets the runway rotation efficiency multiplier.
+// Called by RotationChangeEvent to apply efficiency penalties based on rotation strategy.
+// Values < 1.0 represent efficiency loss (e.g., 0.95 = 5% penalty).
+// Default is 1.0 (no penalty).
 func (w *World) SetRotationMultiplier(multiplier float32) {
 	w.RotationMultiplier = multiplier
 }
 
-// GetRotationMultiplier returns the current rotation efficiency multiplier.
+// GetRotationMultiplier returns the current runway rotation efficiency multiplier.
 func (w *World) GetRotationMultiplier() float32 {
 	return w.RotationMultiplier
 }
 
 // SetGateCapacityConstraint sets the maximum movements per second allowed by gate capacity.
+// Called by GateCapacityConstraintEvent during initialization.
+// This constraint caps the sustained throughput when gates are more restrictive than runways.
+// A value of 0 means no gate constraint is applied.
+// Returns an error if the constraint is negative.
 func (w *World) SetGateCapacityConstraint(maxMovementsPerSecond float32) error {
 	if maxMovementsPerSecond < 0 {
 		return fmt.Errorf("gate capacity constraint cannot be negative: %f", maxMovementsPerSecond)
@@ -113,12 +149,18 @@ func (w *World) SetGateCapacityConstraint(maxMovementsPerSecond float32) error {
 	return nil
 }
 
-// GetGateCapacityConstraint returns the gate capacity constraint (0 means no constraint).
+// GetGateCapacityConstraint returns the gate capacity constraint in movements per second.
+// A value of 0 means no constraint is applied.
 func (w *World) GetGateCapacityConstraint() float32 {
 	return w.GateCapacityConstraint
 }
 
 // SetTaxiTimeOverhead sets the total taxi time overhead per aircraft cycle.
+// Called by TaxiTimeAdjustmentEvent during initialization.
+// This overhead (taxi-in + taxi-out) extends the effective turnaround time, reducing
+// the sustainable capacity when combined with gate constraints.
+// A value of 0 means no taxi time impact.
+// Returns an error if the overhead is negative.
 func (w *World) SetTaxiTimeOverhead(overhead time.Duration) error {
 	if overhead < 0 {
 		return fmt.Errorf("taxi time overhead cannot be negative: %v", overhead)
@@ -127,7 +169,8 @@ func (w *World) SetTaxiTimeOverhead(overhead time.Duration) error {
 	return nil
 }
 
-// GetTaxiTimeOverhead returns the taxi time overhead (0 means no overhead).
+// GetTaxiTimeOverhead returns the taxi time overhead per aircraft cycle.
+// A value of 0 means no taxi time overhead is applied.
 func (w *World) GetTaxiTimeOverhead() time.Duration {
 	return w.TaxiTimeOverhead
 }
