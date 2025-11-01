@@ -20,9 +20,10 @@ type World struct {
 	Events *event.EventQueue
 
 	// System state
-	RunwayStates       map[string]*RunwayState
-	CurfewActive       bool
-	RotationMultiplier float32
+	RunwayStates             map[string]*RunwayState
+	CurfewActive             bool
+	RotationMultiplier       float32
+	GateCapacityConstraint   float32 // Max movements/second limited by gates (0 = no limit)
 
 	// Statistics
 	TotalCapacity float32
@@ -100,6 +101,20 @@ func (w *World) SetRotationMultiplier(multiplier float32) {
 // GetRotationMultiplier returns the current rotation efficiency multiplier.
 func (w *World) GetRotationMultiplier() float32 {
 	return w.RotationMultiplier
+}
+
+// SetGateCapacityConstraint sets the maximum movements per second allowed by gate capacity.
+func (w *World) SetGateCapacityConstraint(maxMovementsPerSecond float32) error {
+	if maxMovementsPerSecond < 0 {
+		return fmt.Errorf("gate capacity constraint cannot be negative: %f", maxMovementsPerSecond)
+	}
+	w.GateCapacityConstraint = maxMovementsPerSecond
+	return nil
+}
+
+// GetGateCapacityConstraint returns the gate capacity constraint (0 means no constraint).
+func (w *World) GetGateCapacityConstraint() float32 {
+	return w.GateCapacityConstraint
 }
 
 // GetAvailableRunways returns a slice of currently available runways.

@@ -37,6 +37,9 @@ const (
 
 	// RotationChangeType indicates rotation efficiency changes
 	RotationChangeType
+
+	// GateCapacityConstraintType indicates a gate capacity constraint is applied
+	GateCapacityConstraintType
 )
 
 // String returns the string representation of the event type
@@ -52,6 +55,8 @@ func (et EventType) String() string {
 		return "RunwayMaintenanceEnd"
 	case RotationChangeType:
 		return "RotationChange"
+	case GateCapacityConstraintType:
+		return "GateCapacityConstraint"
 	default:
 		return "Unknown"
 	}
@@ -77,4 +82,10 @@ type WorldState interface {
 
 	// GetRotationMultiplier returns the current rotation efficiency multiplier
 	GetRotationMultiplier() float32
+
+	// SetGateCapacityConstraint sets the maximum movements per second allowed by gate capacity
+	SetGateCapacityConstraint(maxMovementsPerSecond float32) error
+
+	// GetGateCapacityConstraint returns the gate capacity constraint (0 means no constraint)
+	GetGateCapacityConstraint() float32
 }

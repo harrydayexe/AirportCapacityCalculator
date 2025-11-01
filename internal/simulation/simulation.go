@@ -26,6 +26,7 @@ type (
 	MaintenanceSchedule           = policy.MaintenanceSchedule
 	IntelligentMaintenanceSchedule = policy.IntelligentMaintenanceSchedule
 	PeakHours                     = policy.PeakHours
+	GateCapacityConstraint         = policy.GateCapacityConstraint
 	RotationStrategy              = policy.RotationStrategy
 )
 
@@ -125,6 +126,16 @@ func (s *Simulation) AddMaintenancePolicy(schedule MaintenanceSchedule) *Simulat
 // minimum operational runway capacity.
 func (s *Simulation) AddIntelligentMaintenancePolicy(schedule IntelligentMaintenanceSchedule) (*Simulation, error) {
 	p, err := policy.NewIntelligentMaintenancePolicy(schedule)
+	if err != nil {
+		return nil, err
+	}
+	return s.AddPolicy(p), nil
+}
+
+// AddGateCapacityPolicy adds a gate capacity constraint that limits sustained throughput
+// based on available gates and aircraft turnaround time.
+func (s *Simulation) AddGateCapacityPolicy(constraint GateCapacityConstraint) (*Simulation, error) {
+	p, err := policy.NewGateCapacityPolicy(constraint)
 	if err != nil {
 		return nil, err
 	}

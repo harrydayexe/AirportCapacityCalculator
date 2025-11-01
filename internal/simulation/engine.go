@@ -147,5 +147,20 @@ func (e *Engine) calculateWindowCapacity(ctx context.Context, world *World, dura
 	// Apply rotation efficiency multiplier
 	capacity *= world.RotationMultiplier
 
+	// Apply gate capacity constraint if present
+	if world.GateCapacityConstraint > 0 {
+		// Gate constraint is in movements per second, convert to movements for this duration
+		gateConstrainedCapacity := world.GateCapacityConstraint * durationSeconds
+
+		// Take the minimum of runway capacity and gate-constrained capacity
+		if gateConstrainedCapacity < capacity {
+			e.logger.DebugContext(ctx, "Gate capacity constraint applied",
+				"runwayCapacity", capacity,
+				"gateConstrainedCapacity", gateConstrainedCapacity,
+				"duration", duration)
+			capacity = gateConstrainedCapacity
+		}
+	}
+
 	return capacity
 }
