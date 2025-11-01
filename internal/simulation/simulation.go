@@ -23,8 +23,10 @@ type Policy interface {
 
 // Type aliases for convenience - expose policy package types
 type (
-	MaintenanceSchedule = policy.MaintenanceSchedule
-	RotationStrategy    = policy.RotationStrategy
+	MaintenanceSchedule           = policy.MaintenanceSchedule
+	IntelligentMaintenanceSchedule = policy.IntelligentMaintenanceSchedule
+	PeakHours                     = policy.PeakHours
+	RotationStrategy              = policy.RotationStrategy
 )
 
 // Rotation strategy constants
@@ -116,6 +118,17 @@ func (s *Simulation) AddCurfewPolicy(startTime, endTime time.Time) (*Simulation,
 func (s *Simulation) AddMaintenancePolicy(schedule MaintenanceSchedule) *Simulation {
 	p := policy.NewMaintenancePolicy(schedule)
 	return s.AddPolicy(p)
+}
+
+// AddIntelligentMaintenancePolicy adds an intelligent maintenance policy that optimizes
+// maintenance scheduling by coordinating with curfews, avoiding peak hours, and ensuring
+// minimum operational runway capacity.
+func (s *Simulation) AddIntelligentMaintenancePolicy(schedule IntelligentMaintenanceSchedule) (*Simulation, error) {
+	p, err := policy.NewIntelligentMaintenancePolicy(schedule)
+	if err != nil {
+		return nil, err
+	}
+	return s.AddPolicy(p), nil
 }
 
 // RunwayRotationPolicy adds a runway rotation policy that implements rotation strategies.
