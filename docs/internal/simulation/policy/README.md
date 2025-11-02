@@ -15,6 +15,16 @@ import "github.com/harrydayexe/AirportCapacityCalculator/internal/simulation/pol
   - [func \(p \*CurfewPolicy\) GenerateEvents\(ctx context.Context, world EventWorld\) error](<#CurfewPolicy.GenerateEvents>)
   - [func \(p \*CurfewPolicy\) Name\(\) string](<#CurfewPolicy.Name>)
 - [type EventWorld](<#EventWorld>)
+- [type GateCapacityConstraint](<#GateCapacityConstraint>)
+- [type GateCapacityPolicy](<#GateCapacityPolicy>)
+  - [func NewGateCapacityPolicy\(constraint GateCapacityConstraint\) \(\*GateCapacityPolicy, error\)](<#NewGateCapacityPolicy>)
+  - [func \(p \*GateCapacityPolicy\) GenerateEvents\(ctx context.Context, world EventWorld\) error](<#GateCapacityPolicy.GenerateEvents>)
+  - [func \(p \*GateCapacityPolicy\) Name\(\) string](<#GateCapacityPolicy.Name>)
+- [type IntelligentMaintenancePolicy](<#IntelligentMaintenancePolicy>)
+  - [func NewIntelligentMaintenancePolicy\(schedule IntelligentMaintenanceSchedule\) \(\*IntelligentMaintenancePolicy, error\)](<#NewIntelligentMaintenancePolicy>)
+  - [func \(p \*IntelligentMaintenancePolicy\) GenerateEvents\(ctx context.Context, world EventWorld\) error](<#IntelligentMaintenancePolicy.GenerateEvents>)
+  - [func \(p \*IntelligentMaintenancePolicy\) Name\(\) string](<#IntelligentMaintenancePolicy.Name>)
+- [type IntelligentMaintenanceSchedule](<#IntelligentMaintenanceSchedule>)
 - [type MaintenancePolicy](<#MaintenancePolicy>)
   - [func NewMaintenancePolicy\(schedule MaintenanceSchedule\) \*MaintenancePolicy](<#NewMaintenancePolicy>)
   - [func \(p \*MaintenancePolicy\) GenerateEvents\(ctx context.Context, world EventWorld\) error](<#MaintenancePolicy.GenerateEvents>)
@@ -23,13 +33,21 @@ import "github.com/harrydayexe/AirportCapacityCalculator/internal/simulation/pol
 - [type RotationPolicyConfiguration](<#RotationPolicyConfiguration>)
   - [func NewDefaultRotationPolicyConfiguration\(\) \*RotationPolicyConfiguration](<#NewDefaultRotationPolicyConfiguration>)
   - [func NewRotationPolicyConfiguration\(efficiencyMap map\[RotationStrategy\]float32\) \*RotationPolicyConfiguration](<#NewRotationPolicyConfiguration>)
+- [type RotationSchedule](<#RotationSchedule>)
 - [type RotationStrategy](<#RotationStrategy>)
   - [func \(rs RotationStrategy\) String\(\) string](<#RotationStrategy.String>)
 - [type RunwayRotationPolicy](<#RunwayRotationPolicy>)
   - [func NewDefaultRunwayRotationPolicy\(strategy RotationStrategy\) \*RunwayRotationPolicy](<#NewDefaultRunwayRotationPolicy>)
   - [func NewRunwayRotationPolicy\(strategy RotationStrategy, config \*RotationPolicyConfiguration\) \*RunwayRotationPolicy](<#NewRunwayRotationPolicy>)
+  - [func NewRunwayRotationPolicyWithSchedule\(strategy RotationStrategy, config \*RotationPolicyConfiguration, schedule \*RotationSchedule\) \*RunwayRotationPolicy](<#NewRunwayRotationPolicyWithSchedule>)
   - [func \(p \*RunwayRotationPolicy\) GenerateEvents\(ctx context.Context, world EventWorld\) error](<#RunwayRotationPolicy.GenerateEvents>)
   - [func \(p \*RunwayRotationPolicy\) Name\(\) string](<#RunwayRotationPolicy.Name>)
+- [type TaxiTimeConfiguration](<#TaxiTimeConfiguration>)
+- [type TaxiTimePolicy](<#TaxiTimePolicy>)
+  - [func NewTaxiTimePolicy\(config TaxiTimeConfiguration\) \(\*TaxiTimePolicy, error\)](<#NewTaxiTimePolicy>)
+  - [func \(p \*TaxiTimePolicy\) GenerateEvents\(ctx context.Context, world EventWorld\) error](<#TaxiTimePolicy.GenerateEvents>)
+  - [func \(p \*TaxiTimePolicy\) Name\(\) string](<#TaxiTimePolicy.Name>)
+- [type TimeWindow](<#TimeWindow>)
 
 
 ## Constants
@@ -139,8 +157,116 @@ type EventWorld interface {
 }
 ```
 
+<a name="GateCapacityConstraint"></a>
+## type [GateCapacityConstraint](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/gate_capacity.go#L12-L15>)
+
+GateCapacityConstraint defines gate capacity limitations.
+
+```go
+type GateCapacityConstraint struct {
+    TotalGates            int           // Total number of gates at the airport
+    AverageTurnaroundTime time.Duration // Average time aircraft occupies a gate
+}
+```
+
+<a name="GateCapacityPolicy"></a>
+## type [GateCapacityPolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/gate_capacity.go#L20-L22>)
+
+GateCapacityPolicy models the constraint that gate availability places on sustained throughput. When gates are fully utilized, they limit the airport's ability to accept new arrivals, effectively capping the sustained capacity below what runways could theoretically handle.
+
+```go
+type GateCapacityPolicy struct {
+    // contains filtered or unexported fields
+}
+```
+
+<a name="NewGateCapacityPolicy"></a>
+### func [NewGateCapacityPolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/gate_capacity.go#L25>)
+
+```go
+func NewGateCapacityPolicy(constraint GateCapacityConstraint) (*GateCapacityPolicy, error)
+```
+
+NewGateCapacityPolicy creates a new gate capacity policy.
+
+<a name="GateCapacityPolicy.GenerateEvents"></a>
+### func \(\*GateCapacityPolicy\) [GenerateEvents](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/gate_capacity.go#L53>)
+
+```go
+func (p *GateCapacityPolicy) GenerateEvents(ctx context.Context, world EventWorld) error
+```
+
+GenerateEvents generates a gate capacity constraint event at simulation start. This event applies a capacity multiplier that represents the limitation gates place on sustained throughput.
+
+The multiplier is calculated as: \- Sustained arrival rate = gates / turnaround\_time \- This becomes a cap on total movements if it's lower than runway capacity
+
+Note: This is a simplified model for v0.3.0. Future versions may implement more sophisticated gate utilization tracking with per\-flight occupancy.
+
+<a name="GateCapacityPolicy.Name"></a>
+### func \(\*GateCapacityPolicy\) [Name](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/gate_capacity.go#L39>)
+
+```go
+func (p *GateCapacityPolicy) Name() string
+```
+
+Name returns the policy name.
+
+<a name="IntelligentMaintenancePolicy"></a>
+## type [IntelligentMaintenancePolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/intelligent_maintenance.go#L31-L33>)
+
+IntelligentMaintenancePolicy schedules runway maintenance intelligently by: \- Preferring maintenance during or adjacent to curfew periods \- Coordinating across runways to maintain minimum operational capacity
+
+```go
+type IntelligentMaintenancePolicy struct {
+    // contains filtered or unexported fields
+}
+```
+
+<a name="NewIntelligentMaintenancePolicy"></a>
+### func [NewIntelligentMaintenancePolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/intelligent_maintenance.go#L36>)
+
+```go
+func NewIntelligentMaintenancePolicy(schedule IntelligentMaintenanceSchedule) (*IntelligentMaintenancePolicy, error)
+```
+
+NewIntelligentMaintenancePolicy creates a new intelligent maintenance policy.
+
+<a name="IntelligentMaintenancePolicy.GenerateEvents"></a>
+### func \(\*IntelligentMaintenancePolicy\) [GenerateEvents](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/intelligent_maintenance.go#L60>)
+
+```go
+func (p *IntelligentMaintenancePolicy) GenerateEvents(ctx context.Context, world EventWorld) error
+```
+
+GenerateEvents generates intelligently scheduled maintenance events.
+
+<a name="IntelligentMaintenancePolicy.Name"></a>
+### func \(\*IntelligentMaintenancePolicy\) [Name](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/intelligent_maintenance.go#L48>)
+
+```go
+func (p *IntelligentMaintenancePolicy) Name() string
+```
+
+Name returns the policy name.
+
+<a name="IntelligentMaintenanceSchedule"></a>
+## type [IntelligentMaintenanceSchedule](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/intelligent_maintenance.go#L19-L26>)
+
+IntelligentMaintenanceSchedule defines an intelligent maintenance schedule that coordinates with operational constraints.
+
+```go
+type IntelligentMaintenanceSchedule struct {
+    RunwayDesignations        []string      // Runway identifiers to maintain
+    Duration                  time.Duration // Duration of maintenance window
+    Frequency                 time.Duration // How often maintenance must occur
+    MinimumOperationalRunways int           // Minimum runways that must remain operational (default: 1)
+    CurfewStart               *time.Time    // Optional: daily curfew start time (for coordination)
+    CurfewEnd                 *time.Time    // Optional: daily curfew end time
+}
+```
+
 <a name="MaintenancePolicy"></a>
-## type [MaintenancePolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/maintenance.go#L19-L21>)
+## type [MaintenancePolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/maintenance.go#L20-L22>)
 
 MaintenancePolicy schedules runway maintenance that temporarily removes runways from operation.
 
@@ -151,7 +277,7 @@ type MaintenancePolicy struct {
 ```
 
 <a name="NewMaintenancePolicy"></a>
-### func [NewMaintenancePolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/maintenance.go#L24>)
+### func [NewMaintenancePolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/maintenance.go#L25>)
 
 ```go
 func NewMaintenancePolicy(schedule MaintenanceSchedule) *MaintenancePolicy
@@ -160,7 +286,7 @@ func NewMaintenancePolicy(schedule MaintenanceSchedule) *MaintenancePolicy
 NewMaintenancePolicy creates a new maintenance policy.
 
 <a name="MaintenancePolicy.GenerateEvents"></a>
-### func \(\*MaintenancePolicy\) [GenerateEvents](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/maintenance.go#L37>)
+### func \(\*MaintenancePolicy\) [GenerateEvents](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/maintenance.go#L38>)
 
 ```go
 func (p *MaintenancePolicy) GenerateEvents(ctx context.Context, world EventWorld) error
@@ -169,7 +295,7 @@ func (p *MaintenancePolicy) GenerateEvents(ctx context.Context, world EventWorld
 GenerateEvents generates maintenance start and end events for each runway according to the schedule. Maintenance windows are distributed evenly across the simulation period.
 
 <a name="MaintenancePolicy.Name"></a>
-### func \(\*MaintenancePolicy\) [Name](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/maintenance.go#L31>)
+### func \(\*MaintenancePolicy\) [Name](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/maintenance.go#L32>)
 
 ```go
 func (p *MaintenancePolicy) Name() string
@@ -178,7 +304,7 @@ func (p *MaintenancePolicy) Name() string
 Name returns the policy name.
 
 <a name="MaintenanceSchedule"></a>
-## type [MaintenanceSchedule](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/maintenance.go#L12-L16>)
+## type [MaintenanceSchedule](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/maintenance.go#L13-L17>)
 
 MaintenanceSchedule defines a maintenance schedule for runways.
 
@@ -191,7 +317,7 @@ type MaintenanceSchedule struct {
 ```
 
 <a name="RotationPolicyConfiguration"></a>
-## type [RotationPolicyConfiguration](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/rotation.go#L44-L46>)
+## type [RotationPolicyConfiguration](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/rotation.go#L54-L56>)
 
 RotationPolicyConfiguration holds configuration for runway rotation policies.
 
@@ -202,7 +328,7 @@ type RotationPolicyConfiguration struct {
 ```
 
 <a name="NewDefaultRotationPolicyConfiguration"></a>
-### func [NewDefaultRotationPolicyConfiguration](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/rotation.go#L49>)
+### func [NewDefaultRotationPolicyConfiguration](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/rotation.go#L59>)
 
 ```go
 func NewDefaultRotationPolicyConfiguration() *RotationPolicyConfiguration
@@ -211,7 +337,7 @@ func NewDefaultRotationPolicyConfiguration() *RotationPolicyConfiguration
 NewDefaultRotationPolicyConfiguration creates a new default rotation policy configuration
 
 <a name="NewRotationPolicyConfiguration"></a>
-### func [NewRotationPolicyConfiguration](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/rotation.go#L61>)
+### func [NewRotationPolicyConfiguration](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/rotation.go#L71>)
 
 ```go
 func NewRotationPolicyConfiguration(efficiencyMap map[RotationStrategy]float32) *RotationPolicyConfiguration
@@ -219,8 +345,21 @@ func NewRotationPolicyConfiguration(efficiencyMap map[RotationStrategy]float32) 
 
 NewRotationPolicyConfiguration creates a new rotation policy configuration
 
+<a name="RotationSchedule"></a>
+## type [RotationSchedule](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/rotation.go#L47-L51>)
+
+RotationSchedule defines time\-bounded windows when rotation policies apply. This allows rotation to be active only during specific hours or days \(e.g., weekends\). If nil, rotation applies for the entire simulation period.
+
+```go
+type RotationSchedule struct {
+    StartHour  int            // Hour of day when rotation starts (0-23)
+    EndHour    int            // Hour of day when rotation ends (0-23)
+    DaysOfWeek []time.Weekday // Days when rotation applies (nil = all days)
+}
+```
+
 <a name="RotationStrategy"></a>
-## type [RotationStrategy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/rotation.go#L11>)
+## type [RotationStrategy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/rotation.go#L12>)
 
 RotationStrategy defines how runways are rotated to minimize noise impact.
 
@@ -238,8 +377,8 @@ const (
     // TimeBasedRotation rotates runway usage at fixed time intervals
     TimeBasedRotation
 
-    // BalancedRotation attempts to balance usage across all runways
-    BalancedRotation
+    // PreferentialRunway designates specific runways for noise abatement
+    PreferentialRunway
 
     // NoiseOptimizedRotation rotates to minimize noise impact on communities
     NoiseOptimizedRotation
@@ -247,7 +386,7 @@ const (
 ```
 
 <a name="RotationStrategy.String"></a>
-### func \(RotationStrategy\) [String](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/rotation.go#L28>)
+### func \(RotationStrategy\) [String](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/rotation.go#L29>)
 
 ```go
 func (rs RotationStrategy) String() string
@@ -256,7 +395,7 @@ func (rs RotationStrategy) String() string
 String returns the string representation of the rotation strategy.
 
 <a name="RunwayRotationPolicy"></a>
-## type [RunwayRotationPolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/rotation.go#L69-L72>)
+## type [RunwayRotationPolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/rotation.go#L79-L83>)
 
 RunwayRotationPolicy implements runway rotation strategies to distribute aircraft movements across different runways over time.
 
@@ -267,7 +406,7 @@ type RunwayRotationPolicy struct {
 ```
 
 <a name="NewDefaultRunwayRotationPolicy"></a>
-### func [NewDefaultRunwayRotationPolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/rotation.go#L83>)
+### func [NewDefaultRunwayRotationPolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/rotation.go#L94>)
 
 ```go
 func NewDefaultRunwayRotationPolicy(strategy RotationStrategy) *RunwayRotationPolicy
@@ -276,7 +415,7 @@ func NewDefaultRunwayRotationPolicy(strategy RotationStrategy) *RunwayRotationPo
 NewDefaultRunwayRotationPolicy creates a new runway rotation policy with the default configuration
 
 <a name="NewRunwayRotationPolicy"></a>
-### func [NewRunwayRotationPolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/rotation.go#L75>)
+### func [NewRunwayRotationPolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/rotation.go#L86>)
 
 ```go
 func NewRunwayRotationPolicy(strategy RotationStrategy, config *RotationPolicyConfiguration) *RunwayRotationPolicy
@@ -284,22 +423,103 @@ func NewRunwayRotationPolicy(strategy RotationStrategy, config *RotationPolicyCo
 
 NewRunwayRotationPolicy creates a new runway rotation policy.
 
+<a name="NewRunwayRotationPolicyWithSchedule"></a>
+### func [NewRunwayRotationPolicyWithSchedule](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/rotation.go#L104>)
+
+```go
+func NewRunwayRotationPolicyWithSchedule(strategy RotationStrategy, config *RotationPolicyConfiguration, schedule *RotationSchedule) *RunwayRotationPolicy
+```
+
+NewRunwayRotationPolicyWithSchedule creates a new runway rotation policy with a time\-bounded schedule. The rotation will only apply during the specified time windows.
+
 <a name="RunwayRotationPolicy.GenerateEvents"></a>
-### func \(\*RunwayRotationPolicy\) [GenerateEvents](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/rotation.go#L98>)
+### func \(\*RunwayRotationPolicy\) [GenerateEvents](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/rotation.go#L124>)
 
 ```go
 func (p *RunwayRotationPolicy) GenerateEvents(ctx context.Context, world EventWorld) error
 ```
 
-GenerateEvents generates a rotation change event at the start of the simulation. Different strategies affect capacity by applying efficiency multipliers. Rotation strategies introduce overhead and constraints that reduce theoretical maximum capacity.
+GenerateEvents generates rotation change events based on the policy configuration. Different strategies affect capacity by applying efficiency multipliers. Rotation strategies introduce overhead and constraints that reduce theoretical maximum capacity.
+
+If no schedule is provided, rotation is active for the entire simulation period. If a schedule is provided, rotation change events are generated to enable/disable the rotation multiplier during specified time windows.
 
 <a name="RunwayRotationPolicy.Name"></a>
-### func \(\*RunwayRotationPolicy\) [Name](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/rotation.go#L91>)
+### func \(\*RunwayRotationPolicy\) [Name](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/rotation.go#L113>)
 
 ```go
 func (p *RunwayRotationPolicy) Name() string
 ```
 
 Name returns the policy name.
+
+<a name="TaxiTimeConfiguration"></a>
+## type [TaxiTimeConfiguration](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/taxi_time.go#L12-L15>)
+
+TaxiTimeConfiguration defines taxi time parameters.
+
+```go
+type TaxiTimeConfiguration struct {
+    AverageTaxiInTime  time.Duration // Average time from runway to gate
+    AverageTaxiOutTime time.Duration // Average time from gate to runway
+}
+```
+
+<a name="TaxiTimePolicy"></a>
+## type [TaxiTimePolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/taxi_time.go#L24-L26>)
+
+TaxiTimePolicy models the impact of taxi time on airport capacity. Taxi time affects: \- Effective gate occupancy \(aircraft occupy gates longer due to taxi time\) \- Runway exit efficiency \(faster taxi clears runway area sooner\)
+
+For v0.3.0, this policy primarily adjusts gate capacity by accounting for taxi time overhead in the effective turnaround time.
+
+```go
+type TaxiTimePolicy struct {
+    // contains filtered or unexported fields
+}
+```
+
+<a name="NewTaxiTimePolicy"></a>
+### func [NewTaxiTimePolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/taxi_time.go#L29>)
+
+```go
+func NewTaxiTimePolicy(config TaxiTimeConfiguration) (*TaxiTimePolicy, error)
+```
+
+NewTaxiTimePolicy creates a new taxi time policy.
+
+<a name="TaxiTimePolicy.GenerateEvents"></a>
+### func \(\*TaxiTimePolicy\) [GenerateEvents](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/taxi_time.go#L61>)
+
+```go
+func (p *TaxiTimePolicy) GenerateEvents(ctx context.Context, world EventWorld) error
+```
+
+GenerateEvents generates a taxi time adjustment event at simulation start.
+
+Taxi time extends the effective time an aircraft occupies the airport system: \- Arrival: lands, taxis in \(taxi\-in time\), occupies gate, taxis out \(taxi\-out time\), departs \- Total taxi overhead = taxi\-in \+ taxi\-out
+
+This overhead reduces sustainable throughput by extending the effective turnaround time. The policy generates an event that can be used by the engine to adjust capacity calculations.
+
+Note: This is a simplified model. Future versions may implement: \- Taxiway capacity constraints \(max aircraft on taxiways\) \- Runway exit efficiency modeling \- Hot spot and conflict point detection
+
+<a name="TaxiTimePolicy.Name"></a>
+### func \(\*TaxiTimePolicy\) [Name](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/taxi_time.go#L43>)
+
+```go
+func (p *TaxiTimePolicy) Name() string
+```
+
+Name returns the policy name.
+
+<a name="TimeWindow"></a>
+## type [TimeWindow](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/policy/intelligent_maintenance.go#L13-L16>)
+
+TimeWindow represents a time period.
+
+```go
+type TimeWindow struct {
+    Start time.Time
+    End   time.Time
+}
+```
 
 Generated by [gomarkdoc](<https://github.com/princjef/gomarkdoc>)

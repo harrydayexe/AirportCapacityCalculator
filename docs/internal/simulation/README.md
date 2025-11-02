@@ -8,40 +8,63 @@ import "github.com/harrydayexe/AirportCapacityCalculator/internal/simulation"
 
 The package simulation defines the Simulation interface for running simulations.
 
+Package simulation provides the world state container and management for event\-driven simulations. The World tracks all simulation state including runway availability, operational constraints, and capacity modifiers that affect the theoretical maximum throughput calculation.
+
 ## Index
 
 - [Constants](<#constants>)
 - [type Engine](<#Engine>)
   - [func NewEngine\(logger \*slog.Logger\) \*Engine](<#NewEngine>)
   - [func \(e \*Engine\) Calculate\(ctx context.Context, world \*World\) \(float32, error\)](<#Engine.Calculate>)
+- [type GateCapacityConstraint](<#GateCapacityConstraint>)
+- [type IntelligentMaintenanceSchedule](<#IntelligentMaintenanceSchedule>)
 - [type MaintenanceSchedule](<#MaintenanceSchedule>)
 - [type Policy](<#Policy>)
 - [type PreSimulationPlugin](<#PreSimulationPlugin>)
+- [type RotationSchedule](<#RotationSchedule>)
 - [type RotationStrategy](<#RotationStrategy>)
+- [type RunwayManager](<#RunwayManager>)
+  - [func NewRunwayManager\(runways \[\]airport.Runway, compatibility \*airport.RunwayCompatibility\) \*RunwayManager](<#NewRunwayManager>)
+  - [func \(rm \*RunwayManager\) GetActiveConfiguration\(\) map\[string\]\*event.ActiveRunwayInfo](<#RunwayManager.GetActiveConfiguration>)
+  - [func \(rm \*RunwayManager\) OnCurfewChanged\(active bool\)](<#RunwayManager.OnCurfewChanged>)
+  - [func \(rm \*RunwayManager\) OnRunwayAvailable\(runwayID string\)](<#RunwayManager.OnRunwayAvailable>)
+  - [func \(rm \*RunwayManager\) OnRunwayUnavailable\(runwayID string\)](<#RunwayManager.OnRunwayUnavailable>)
 - [type RunwayState](<#RunwayState>)
 - [type Simulation](<#Simulation>)
   - [func NewSimulation\(airport airport.Airport, logger \*slog.Logger\) \*Simulation](<#NewSimulation>)
   - [func \(s \*Simulation\) AddCurfewPolicy\(startTime, endTime time.Time\) \(\*Simulation, error\)](<#Simulation.AddCurfewPolicy>)
+  - [func \(s \*Simulation\) AddGateCapacityPolicy\(constraint GateCapacityConstraint\) \(\*Simulation, error\)](<#Simulation.AddGateCapacityPolicy>)
+  - [func \(s \*Simulation\) AddIntelligentMaintenancePolicy\(schedule IntelligentMaintenanceSchedule\) \(\*Simulation, error\)](<#Simulation.AddIntelligentMaintenancePolicy>)
   - [func \(s \*Simulation\) AddMaintenancePolicy\(schedule MaintenanceSchedule\) \*Simulation](<#Simulation.AddMaintenancePolicy>)
   - [func \(s \*Simulation\) AddPolicy\(policy Policy\) \*Simulation](<#Simulation.AddPolicy>)
   - [func \(s \*Simulation\) AddPreSimulationPlugin\(plugin PreSimulationPlugin\) \*Simulation](<#Simulation.AddPreSimulationPlugin>)
+  - [func \(s \*Simulation\) AddTaxiTimePolicy\(config TaxiTimeConfiguration\) \(\*Simulation, error\)](<#Simulation.AddTaxiTimePolicy>)
   - [func \(s \*Simulation\) Run\(ctx context.Context\) \(float32, error\)](<#Simulation.Run>)
   - [func \(s \*Simulation\) RunwayRotationPolicy\(strategy RotationStrategy\) \*Simulation](<#Simulation.RunwayRotationPolicy>)
+- [type TaxiTimeConfiguration](<#TaxiTimeConfiguration>)
 - [type World](<#World>)
   - [func NewWorld\(airport airport.Airport, startTime, endTime time.Time\) \*World](<#NewWorld>)
   - [func \(w \*World\) CountAvailableRunways\(\) int](<#World.CountAvailableRunways>)
+  - [func \(w \*World\) GetActiveRunwayConfiguration\(\) map\[string\]\*event.ActiveRunwayInfo](<#World.GetActiveRunwayConfiguration>)
   - [func \(w \*World\) GetAvailableRunways\(\) \[\]airport.Runway](<#World.GetAvailableRunways>)
   - [func \(w \*World\) GetCurfewActive\(\) bool](<#World.GetCurfewActive>)
   - [func \(w \*World\) GetEndTime\(\) time.Time](<#World.GetEndTime>)
   - [func \(w \*World\) GetEventQueue\(\) \*event.EventQueue](<#World.GetEventQueue>)
+  - [func \(w \*World\) GetGateCapacityConstraint\(\) float32](<#World.GetGateCapacityConstraint>)
   - [func \(w \*World\) GetRotationMultiplier\(\) float32](<#World.GetRotationMultiplier>)
   - [func \(w \*World\) GetRunwayAvailable\(runwayID string\) \(bool, error\)](<#World.GetRunwayAvailable>)
   - [func \(w \*World\) GetRunwayIDs\(\) \[\]string](<#World.GetRunwayIDs>)
   - [func \(w \*World\) GetStartTime\(\) time.Time](<#World.GetStartTime>)
+  - [func \(w \*World\) GetTaxiTimeOverhead\(\) time.Duration](<#World.GetTaxiTimeOverhead>)
+  - [func \(w \*World\) NotifyCurfewChange\(active bool, timestamp time.Time\) error](<#World.NotifyCurfewChange>)
+  - [func \(w \*World\) NotifyRunwayAvailabilityChange\(runwayID string, available bool, timestamp time.Time\) error](<#World.NotifyRunwayAvailabilityChange>)
   - [func \(w \*World\) ScheduleEvent\(evt event.Event\)](<#World.ScheduleEvent>)
+  - [func \(w \*World\) SetActiveRunwayConfiguration\(config map\[string\]\*event.ActiveRunwayInfo\) error](<#World.SetActiveRunwayConfiguration>)
   - [func \(w \*World\) SetCurfewActive\(active bool\)](<#World.SetCurfewActive>)
+  - [func \(w \*World\) SetGateCapacityConstraint\(maxMovementsPerSecond float32\) error](<#World.SetGateCapacityConstraint>)
   - [func \(w \*World\) SetRotationMultiplier\(multiplier float32\)](<#World.SetRotationMultiplier>)
   - [func \(w \*World\) SetRunwayAvailable\(runwayID string, available bool\) error](<#World.SetRunwayAvailable>)
+  - [func \(w \*World\) SetTaxiTimeOverhead\(overhead time.Duration\) error](<#World.SetTaxiTimeOverhead>)
 
 
 ## Constants
@@ -72,7 +95,7 @@ const (
 const (
     NoRotation             = policy.NoRotation
     TimeBasedRotation      = policy.TimeBasedRotation
-    BalancedRotation       = policy.BalancedRotation
+    PreferentialRunway     = policy.PreferentialRunway
     NoiseOptimizedRotation = policy.NoiseOptimizedRotation
 )
 ```
@@ -112,8 +135,26 @@ func (e *Engine) Calculate(ctx context.Context, world *World) (float32, error)
 
 Calculate computes total annual movements using event\-driven state\-window approach. This method processes events chronologically and calculates capacity for each time window.
 
+<a name="GateCapacityConstraint"></a>
+## type [GateCapacityConstraint](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L29>)
+
+Type aliases for convenience \- expose policy package types
+
+```go
+type GateCapacityConstraint = policy.GateCapacityConstraint
+```
+
+<a name="IntelligentMaintenanceSchedule"></a>
+## type [IntelligentMaintenanceSchedule](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L28>)
+
+Type aliases for convenience \- expose policy package types
+
+```go
+type IntelligentMaintenanceSchedule = policy.IntelligentMaintenanceSchedule
+```
+
 <a name="MaintenanceSchedule"></a>
-## type [MaintenanceSchedule](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L26>)
+## type [MaintenanceSchedule](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L27>)
 
 Type aliases for convenience \- expose policy package types
 
@@ -122,7 +163,7 @@ type MaintenanceSchedule = policy.MaintenanceSchedule
 ```
 
 <a name="Policy"></a>
-## type [Policy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L19-L22>)
+## type [Policy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L20-L23>)
 
 Policy defines a runtime policy that generates events for the event\-driven simulation.
 
@@ -134,7 +175,7 @@ type Policy interface {
 ```
 
 <a name="PreSimulationPlugin"></a>
-## type [PreSimulationPlugin](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L14-L16>)
+## type [PreSimulationPlugin](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L15-L17>)
 
 PreSimulationPlugin defines a plugin that modifies the airport configuration before the simulation runs.
 
@@ -144,8 +185,17 @@ type PreSimulationPlugin interface {
 }
 ```
 
+<a name="RotationSchedule"></a>
+## type [RotationSchedule](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L32>)
+
+Type aliases for convenience \- expose policy package types
+
+```go
+type RotationSchedule = policy.RotationSchedule
+```
+
 <a name="RotationStrategy"></a>
-## type [RotationStrategy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L27>)
+## type [RotationStrategy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L31>)
 
 Type aliases for convenience \- expose policy package types
 
@@ -153,20 +203,91 @@ Type aliases for convenience \- expose policy package types
 type RotationStrategy = policy.RotationStrategy
 ```
 
-<a name="RunwayState"></a>
-## type [RunwayState](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L32-L35>)
+<a name="RunwayManager"></a>
+## type [RunwayManager](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/runway_manager.go#L16-L40>)
 
-RunwayState tracks a single runway's availability and operational parameters.
+RunwayManager is responsible for managing runway availability and determining the active runway configuration. It is the single source of truth for which runways should be used for capacity calculations.
+
+Thread\-Safety: All public methods are thread\-safe and can be called concurrently. Uses sync.RWMutex for efficient concurrent reads with exclusive writes.
+
+```go
+type RunwayManager struct {
+    // contains filtered or unexported fields
+}
+```
+
+<a name="NewRunwayManager"></a>
+### func [NewRunwayManager](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/runway_manager.go#L48>)
+
+```go
+func NewRunwayManager(runways []airport.Runway, compatibility *airport.RunwayCompatibility) *RunwayManager
+```
+
+NewRunwayManager creates a new thread\-safe runway manager initialized with all runways available and no curfew active.
+
+Parameters:
+
+- runways: The complete runway inventory for this airport
+- compatibility: Optional runway compatibility graph \(nil means all runways compatible\)
+
+<a name="RunwayManager.GetActiveConfiguration"></a>
+### func \(\*RunwayManager\) [GetActiveConfiguration](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/runway_manager.go#L111>)
+
+```go
+func (rm *RunwayManager) GetActiveConfiguration() map[string]*event.ActiveRunwayInfo
+```
+
+GetActiveConfiguration returns the current active runway configuration. Returns a deep copy to prevent external mutation of internal state.
+
+Thread\-safe: Uses read lock.
+
+<a name="RunwayManager.OnCurfewChanged"></a>
+### func \(\*RunwayManager\) [OnCurfewChanged](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/runway_manager.go#L99>)
+
+```go
+func (rm *RunwayManager) OnCurfewChanged(active bool)
+```
+
+OnCurfewChanged notifies the manager that curfew status has changed. This triggers recalculation of the active runway configuration.
+
+Thread\-safe: Uses write lock.
+
+<a name="RunwayManager.OnRunwayAvailable"></a>
+### func \(\*RunwayManager\) [OnRunwayAvailable](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/runway_manager.go#L75>)
+
+```go
+func (rm *RunwayManager) OnRunwayAvailable(runwayID string)
+```
+
+OnRunwayAvailable notifies the manager that a runway has become available. This triggers recalculation of the active runway configuration.
+
+Thread\-safe: Uses write lock.
+
+<a name="RunwayManager.OnRunwayUnavailable"></a>
+### func \(\*RunwayManager\) [OnRunwayUnavailable](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/runway_manager.go#L87>)
+
+```go
+func (rm *RunwayManager) OnRunwayUnavailable(runwayID string)
+```
+
+OnRunwayUnavailable notifies the manager that a runway has become unavailable. This triggers recalculation of the active runway configuration.
+
+Thread\-safe: Uses write lock.
+
+<a name="RunwayState"></a>
+## type [RunwayState](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L52-L55>)
+
+RunwayState tracks a single runway's operational status and configuration. Each runway in the airport has its own state that can be modified by events \(e.g., maintenance makes runway unavailable\).
 
 ```go
 type RunwayState struct {
-    Runway    airport.Runway
-    Available bool
+    Runway    airport.Runway // The runway's configuration (designation, separation, etc.)
+    Available bool           // Whether the runway is currently available for operations
 }
 ```
 
 <a name="Simulation"></a>
-## type [Simulation](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L39-L44>)
+## type [Simulation](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L44-L49>)
 
 Simulation represents an event\-driven simulation that can be run.
 
@@ -177,7 +298,7 @@ type Simulation struct {
 ```
 
 <a name="NewSimulation"></a>
-### func [NewSimulation](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L47>)
+### func [NewSimulation](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L52>)
 
 ```go
 func NewSimulation(airport airport.Airport, logger *slog.Logger) *Simulation
@@ -186,7 +307,7 @@ func NewSimulation(airport airport.Airport, logger *slog.Logger) *Simulation
 NewSimulation creates a new Simulation instance.
 
 <a name="Simulation.AddCurfewPolicy"></a>
-### func \(\*Simulation\) [AddCurfewPolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L107>)
+### func \(\*Simulation\) [AddCurfewPolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L138>)
 
 ```go
 func (s *Simulation) AddCurfewPolicy(startTime, endTime time.Time) (*Simulation, error)
@@ -194,8 +315,26 @@ func (s *Simulation) AddCurfewPolicy(startTime, endTime time.Time) (*Simulation,
 
 AddCurfewPolicy adds a curfew policy that restricts airport operations during specified hours. Returns an error if the curfew time range is invalid.
 
+<a name="Simulation.AddGateCapacityPolicy"></a>
+### func \(\*Simulation\) [AddGateCapacityPolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L165>)
+
+```go
+func (s *Simulation) AddGateCapacityPolicy(constraint GateCapacityConstraint) (*Simulation, error)
+```
+
+AddGateCapacityPolicy adds a gate capacity constraint that limits sustained throughput based on available gates and aircraft turnaround time.
+
+<a name="Simulation.AddIntelligentMaintenancePolicy"></a>
+### func \(\*Simulation\) [AddIntelligentMaintenancePolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L155>)
+
+```go
+func (s *Simulation) AddIntelligentMaintenancePolicy(schedule IntelligentMaintenanceSchedule) (*Simulation, error)
+```
+
+AddIntelligentMaintenancePolicy adds an intelligent maintenance policy that optimizes maintenance scheduling by coordinating with curfews, avoiding peak hours, and ensuring minimum operational runway capacity.
+
 <a name="Simulation.AddMaintenancePolicy"></a>
-### func \(\*Simulation\) [AddMaintenancePolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L116>)
+### func \(\*Simulation\) [AddMaintenancePolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L147>)
 
 ```go
 func (s *Simulation) AddMaintenancePolicy(schedule MaintenanceSchedule) *Simulation
@@ -204,7 +343,7 @@ func (s *Simulation) AddMaintenancePolicy(schedule MaintenanceSchedule) *Simulat
 AddMaintenancePolicy adds a maintenance policy that schedules runway maintenance.
 
 <a name="Simulation.AddPolicy"></a>
-### func \(\*Simulation\) [AddPolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L100>)
+### func \(\*Simulation\) [AddPolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L131>)
 
 ```go
 func (s *Simulation) AddPolicy(policy Policy) *Simulation
@@ -213,7 +352,7 @@ func (s *Simulation) AddPolicy(policy Policy) *Simulation
 AddPolicy adds a runtime policy to the simulation.
 
 <a name="Simulation.AddPreSimulationPlugin"></a>
-### func \(\*Simulation\) [AddPreSimulationPlugin](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L57>)
+### func \(\*Simulation\) [AddPreSimulationPlugin](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L62>)
 
 ```go
 func (s *Simulation) AddPreSimulationPlugin(plugin PreSimulationPlugin) *Simulation
@@ -221,8 +360,17 @@ func (s *Simulation) AddPreSimulationPlugin(plugin PreSimulationPlugin) *Simulat
 
 AddPreSimulationPlugin adds a pre\-simulation plugin to the simulation.
 
+<a name="Simulation.AddTaxiTimePolicy"></a>
+### func \(\*Simulation\) [AddTaxiTimePolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L175>)
+
+```go
+func (s *Simulation) AddTaxiTimePolicy(config TaxiTimeConfiguration) (*Simulation, error)
+```
+
+AddTaxiTimePolicy adds taxi time overhead that extends effective turnaround time and reduces sustainable capacity. Taxi time includes both taxi\-in and taxi\-out time.
+
 <a name="Simulation.Run"></a>
-### func \(\*Simulation\) [Run](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L63>)
+### func \(\*Simulation\) [Run](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L68>)
 
 ```go
 func (s *Simulation) Run(ctx context.Context) (float32, error)
@@ -231,7 +379,7 @@ func (s *Simulation) Run(ctx context.Context) (float32, error)
 Run executes the event\-driven simulation.
 
 <a name="Simulation.RunwayRotationPolicy"></a>
-### func \(\*Simulation\) [RunwayRotationPolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L122>)
+### func \(\*Simulation\) [RunwayRotationPolicy](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L184>)
 
 ```go
 func (s *Simulation) RunwayRotationPolicy(strategy RotationStrategy) *Simulation
@@ -239,42 +387,75 @@ func (s *Simulation) RunwayRotationPolicy(strategy RotationStrategy) *Simulation
 
 RunwayRotationPolicy adds a runway rotation policy that implements rotation strategies.
 
-<a name="World"></a>
-## type [World](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L13-L29>)
+<a name="TaxiTimeConfiguration"></a>
+## type [TaxiTimeConfiguration](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/simulation.go#L30>)
 
-World represents the complete state of the simulation at any point in time. It tracks runway availability, curfew status, and rotation efficiency.
+Type aliases for convenience \- expose policy package types
+
+```go
+type TaxiTimeConfiguration = policy.TaxiTimeConfiguration
+```
+
+<a name="World"></a>
+## type [World](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L19-L47>)
+
+World represents the complete state of the simulation at any point in time. It tracks runway availability, curfew status, rotation efficiency, gate constraints, and taxi time overhead. The World is the central state container that events modify during the simulation to affect capacity calculations.
 
 ```go
 type World struct {
-    Airport     airport.Airport
-    StartTime   time.Time
-    EndTime     time.Time
-    CurrentTime time.Time
+    // Airport configuration
+    Airport airport.Airport // The airport being simulated
 
-    // Event queue for chronological processing
-    Events *event.EventQueue
+    // Time boundaries
+    StartTime   time.Time // Simulation start time
+    EndTime     time.Time // Simulation end time
+    CurrentTime time.Time // Current simulation time (updated as events are processed)
 
-    // System state
-    RunwayStates       map[string]*RunwayState
-    CurfewActive       bool
-    RotationMultiplier float32
+    // Event processing
+    Events *event.EventQueue // Priority queue of events ordered chronologically
 
-    // Statistics
-    TotalCapacity float32
+    // Operational state
+    RunwayStates map[string]*RunwayState // Per-runway availability and configuration (legacy, for historical tracking)
+    CurfewActive bool                    // Whether airport curfew is currently in effect
+
+    // Runway management (single source of truth for active runways)
+    RunwayManager *RunwayManager // Manages runway availability and active configuration
+
+    ActiveRunwayConfiguration map[string]*event.ActiveRunwayInfo // Current active runway configuration
+
+    // Capacity modifiers
+    RotationMultiplier     float32       // Efficiency multiplier from runway rotation strategy (1.0 = no penalty)
+    GateCapacityConstraint float32       // Max movements/second limited by gates (0 = no constraint)
+    TaxiTimeOverhead       time.Duration // Total taxi time overhead per aircraft cycle (0 = no overhead)
+
+    // Metrics
+    TotalCapacity float32 // Accumulated total capacity (movements) calculated so far
+    // contains filtered or unexported fields
 }
 ```
 
 <a name="NewWorld"></a>
-### func [NewWorld](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L38>)
+### func [NewWorld](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L68>)
 
 ```go
 func NewWorld(airport airport.Airport, startTime, endTime time.Time) *World
 ```
 
-NewWorld creates a new simulation world initialized with an airport.
+NewWorld creates a new simulation world initialized with an airport and time boundaries.
+
+The world is initialized with default values:
+
+- All runways are available
+- No curfew is active
+- RotationMultiplier is 1.0 \(no efficiency penalty\)
+- GateCapacityConstraint is 0 \(no gate limitation\)
+- TaxiTimeOverhead is 0 \(no taxi time impact\)
+- Empty event queue
+
+Policies will later modify these defaults by generating events that change the world state.
 
 <a name="World.CountAvailableRunways"></a>
-### func \(\*World\) [CountAvailableRunways](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L119>)
+### func \(\*World\) [CountAvailableRunways](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L204>)
 
 ```go
 func (w *World) CountAvailableRunways() int
@@ -282,8 +463,19 @@ func (w *World) CountAvailableRunways() int
 
 CountAvailableRunways returns the number of currently available runways.
 
+<a name="World.GetActiveRunwayConfiguration"></a>
+### func \(\*World\) [GetActiveRunwayConfiguration](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L269>)
+
+```go
+func (w *World) GetActiveRunwayConfiguration() map[string]*event.ActiveRunwayInfo
+```
+
+GetActiveRunwayConfiguration returns the current active runway configuration. Returns a copy to prevent external mutation of internal state.
+
+Thread\-safe: Uses read lock.
+
 <a name="World.GetAvailableRunways"></a>
-### func \(\*World\) [GetAvailableRunways](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L106>)
+### func \(\*World\) [GetAvailableRunways](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L191>)
 
 ```go
 func (w *World) GetAvailableRunways() []airport.Runway
@@ -292,16 +484,16 @@ func (w *World) GetAvailableRunways() []airport.Runway
 GetAvailableRunways returns a slice of currently available runways.
 
 <a name="World.GetCurfewActive"></a>
-### func \(\*World\) [GetCurfewActive](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L70>)
+### func \(\*World\) [GetCurfewActive](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L109>)
 
 ```go
 func (w *World) GetCurfewActive() bool
 ```
 
-GetCurfewActive returns whether curfew is currently active.
+GetCurfewActive returns whether airport curfew is currently in effect.
 
 <a name="World.GetEndTime"></a>
-### func \(\*World\) [GetEndTime](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L147>)
+### func \(\*World\) [GetEndTime](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L232>)
 
 ```go
 func (w *World) GetEndTime() time.Time
@@ -310,7 +502,7 @@ func (w *World) GetEndTime() time.Time
 GetEndTime returns the simulation end time.
 
 <a name="World.GetEventQueue"></a>
-### func \(\*World\) [GetEventQueue](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L137>)
+### func \(\*World\) [GetEventQueue](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L222>)
 
 ```go
 func (w *World) GetEventQueue() *event.EventQueue
@@ -318,26 +510,35 @@ func (w *World) GetEventQueue() *event.EventQueue
 
 GetEventQueue returns the event queue.
 
+<a name="World.GetGateCapacityConstraint"></a>
+### func \(\*World\) [GetGateCapacityConstraint](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L166>)
+
+```go
+func (w *World) GetGateCapacityConstraint() float32
+```
+
+GetGateCapacityConstraint returns the gate capacity constraint in movements per second. A value of 0 means no constraint is applied.
+
 <a name="World.GetRotationMultiplier"></a>
-### func \(\*World\) [GetRotationMultiplier](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L101>)
+### func \(\*World\) [GetRotationMultiplier](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L147>)
 
 ```go
 func (w *World) GetRotationMultiplier() float32
 ```
 
-GetRotationMultiplier returns the current rotation efficiency multiplier.
+GetRotationMultiplier returns the current runway rotation efficiency multiplier.
 
 <a name="World.GetRunwayAvailable"></a>
-### func \(\*World\) [GetRunwayAvailable](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L86>)
+### func \(\*World\) [GetRunwayAvailable](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L129>)
 
 ```go
 func (w *World) GetRunwayAvailable(runwayID string) (bool, error)
 ```
 
-GetRunwayAvailable checks if a runway is currently available.
+GetRunwayAvailable checks if a runway is currently available for operations. Returns an error if the runway ID is not found in the airport configuration.
 
 <a name="World.GetRunwayIDs"></a>
-### func \(\*World\) [GetRunwayIDs](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L152>)
+### func \(\*World\) [GetRunwayIDs](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L237>)
 
 ```go
 func (w *World) GetRunwayIDs() []string
@@ -346,7 +547,7 @@ func (w *World) GetRunwayIDs() []string
 GetRunwayIDs returns a list of all runway IDs.
 
 <a name="World.GetStartTime"></a>
-### func \(\*World\) [GetStartTime](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L142>)
+### func \(\*World\) [GetStartTime](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L227>)
 
 ```go
 func (w *World) GetStartTime() time.Time
@@ -354,8 +555,35 @@ func (w *World) GetStartTime() time.Time
 
 GetStartTime returns the simulation start time.
 
+<a name="World.GetTaxiTimeOverhead"></a>
+### func \(\*World\) [GetTaxiTimeOverhead](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L186>)
+
+```go
+func (w *World) GetTaxiTimeOverhead() time.Duration
+```
+
+GetTaxiTimeOverhead returns the taxi time overhead per aircraft cycle. A value of 0 means no taxi time overhead is applied.
+
+<a name="World.NotifyCurfewChange"></a>
+### func \(\*World\) [NotifyCurfewChange](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L308>)
+
+```go
+func (w *World) NotifyCurfewChange(active bool, timestamp time.Time) error
+```
+
+NotifyCurfewChange notifies the RunwayManager of a curfew status change and schedules an ActiveRunwayConfigurationChangedEvent with the new configuration. During curfew, the configuration will be empty \(no active runways\).
+
+<a name="World.NotifyRunwayAvailabilityChange"></a>
+### func \(\*World\) [NotifyRunwayAvailabilityChange](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L287>)
+
+```go
+func (w *World) NotifyRunwayAvailabilityChange(runwayID string, available bool, timestamp time.Time) error
+```
+
+NotifyRunwayAvailabilityChange notifies the RunwayManager of a runway availability change and schedules an ActiveRunwayConfigurationChangedEvent with the new configuration. This ensures the active runway configuration is updated and the engine uses the correct runways.
+
 <a name="World.ScheduleEvent"></a>
-### func \(\*World\) [ScheduleEvent](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L132>)
+### func \(\*World\) [ScheduleEvent](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L217>)
 
 ```go
 func (w *World) ScheduleEvent(evt event.Event)
@@ -363,31 +591,60 @@ func (w *World) ScheduleEvent(evt event.Event)
 
 ScheduleEvent adds an event to the event queue.
 
+<a name="World.SetActiveRunwayConfiguration"></a>
+### func \(\*World\) [SetActiveRunwayConfiguration](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L250>)
+
+```go
+func (w *World) SetActiveRunwayConfiguration(config map[string]*event.ActiveRunwayInfo) error
+```
+
+SetActiveRunwayConfiguration sets the active runway configuration. This is the single source of truth for which runways the engine should use for capacity calculations. Stores a copy to prevent external mutation.
+
+Thread\-safe: Uses write lock.
+
 <a name="World.SetCurfewActive"></a>
-### func \(\*World\) [SetCurfewActive](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L65>)
+### func \(\*World\) [SetCurfewActive](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L104>)
 
 ```go
 func (w *World) SetCurfewActive(active bool)
 ```
 
-SetCurfewActive sets whether curfew is currently active.
+SetCurfewActive sets whether airport curfew is currently in effect. Called by CurfewStartEvent \(sets true\) and CurfewEndEvent \(sets false\). When true, the engine will calculate zero capacity for the affected time window.
+
+<a name="World.SetGateCapacityConstraint"></a>
+### func \(\*World\) [SetGateCapacityConstraint](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L156>)
+
+```go
+func (w *World) SetGateCapacityConstraint(maxMovementsPerSecond float32) error
+```
+
+SetGateCapacityConstraint sets the maximum movements per second allowed by gate capacity. Called by GateCapacityConstraintEvent during initialization. This constraint caps the sustained throughput when gates are more restrictive than runways. A value of 0 means no gate constraint is applied. Returns an error if the constraint is negative.
 
 <a name="World.SetRotationMultiplier"></a>
-### func \(\*World\) [SetRotationMultiplier](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L96>)
+### func \(\*World\) [SetRotationMultiplier](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L142>)
 
 ```go
 func (w *World) SetRotationMultiplier(multiplier float32)
 ```
 
-SetRotationMultiplier sets the current rotation efficiency multiplier.
+SetRotationMultiplier sets the runway rotation efficiency multiplier. Called by RotationChangeEvent to apply efficiency penalties based on rotation strategy. Values \< 1.0 represent efficiency loss \(e.g., 0.95 = 5% penalty\). Default is 1.0 \(no penalty\).
 
 <a name="World.SetRunwayAvailable"></a>
-### func \(\*World\) [SetRunwayAvailable](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L75>)
+### func \(\*World\) [SetRunwayAvailable](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L117>)
 
 ```go
 func (w *World) SetRunwayAvailable(runwayID string, available bool) error
 ```
 
-SetRunwayAvailable marks a runway as available or unavailable.
+SetRunwayAvailable marks a runway as available or unavailable for operations. Called by RunwayMaintenanceStartEvent \(sets false\) and RunwayMaintenanceEndEvent \(sets true\). Unavailable runways are excluded from capacity calculations. Returns an error if the runway ID is not found in the airport configuration.
+
+<a name="World.SetTaxiTimeOverhead"></a>
+### func \(\*World\) [SetTaxiTimeOverhead](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/simulation/world.go#L176>)
+
+```go
+func (w *World) SetTaxiTimeOverhead(overhead time.Duration) error
+```
+
+SetTaxiTimeOverhead sets the total taxi time overhead per aircraft cycle. Called by TaxiTimeAdjustmentEvent during initialization. This overhead \(taxi\-in \+ taxi\-out\) extends the effective turnaround time, reducing the sustainable capacity when combined with gate constraints. A value of 0 means no taxi time impact. Returns an error if the overhead is negative.
 
 Generated by [gomarkdoc](<https://github.com/princjef/gomarkdoc>)
