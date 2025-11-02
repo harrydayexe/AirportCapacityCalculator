@@ -34,7 +34,7 @@ func createTestRunways() []airport.Runway {
 
 func TestNewRunwayManager(t *testing.T) {
 	runways := createTestRunways()
-	rm := NewRunwayManager(runways)
+	rm := NewRunwayManager(runways, nil)
 
 	if rm == nil {
 		t.Fatal("Expected non-nil RunwayManager")
@@ -64,7 +64,7 @@ func TestNewRunwayManager(t *testing.T) {
 
 func TestRunwayManager_OnRunwayUnavailable(t *testing.T) {
 	runways := createTestRunways()
-	rm := NewRunwayManager(runways)
+	rm := NewRunwayManager(runways, nil)
 
 	// Mark one runway unavailable
 	rm.OnRunwayUnavailable("09L")
@@ -81,7 +81,7 @@ func TestRunwayManager_OnRunwayUnavailable(t *testing.T) {
 
 func TestRunwayManager_OnRunwayAvailable(t *testing.T) {
 	runways := createTestRunways()
-	rm := NewRunwayManager(runways)
+	rm := NewRunwayManager(runways, nil)
 
 	// Mark unavailable then available again
 	rm.OnRunwayUnavailable("09L")
@@ -99,7 +99,7 @@ func TestRunwayManager_OnRunwayAvailable(t *testing.T) {
 
 func TestRunwayManager_OnCurfewChanged(t *testing.T) {
 	runways := createTestRunways()
-	rm := NewRunwayManager(runways)
+	rm := NewRunwayManager(runways, nil)
 
 	// Activate curfew
 	rm.OnCurfewChanged(true)
@@ -120,7 +120,7 @@ func TestRunwayManager_OnCurfewChanged(t *testing.T) {
 
 func TestRunwayManager_ConcurrentNotifications(t *testing.T) {
 	runways := createTestRunways()
-	rm := NewRunwayManager(runways)
+	rm := NewRunwayManager(runways, nil)
 
 	var wg sync.WaitGroup
 	numGoroutines := 50
@@ -152,7 +152,7 @@ func TestRunwayManager_ConcurrentNotifications(t *testing.T) {
 
 func TestRunwayManager_ConcurrentReads(t *testing.T) {
 	runways := createTestRunways()
-	rm := NewRunwayManager(runways)
+	rm := NewRunwayManager(runways, nil)
 
 	var wg sync.WaitGroup
 	numReaders := 100
@@ -185,7 +185,7 @@ func TestRunwayManager_ConcurrentReads(t *testing.T) {
 
 func TestRunwayManager_ConcurrentReadsDuringWrites(t *testing.T) {
 	runways := createTestRunways()
-	rm := NewRunwayManager(runways)
+	rm := NewRunwayManager(runways, nil)
 
 	var wg sync.WaitGroup
 	stopReaders := make(chan struct{})
@@ -226,7 +226,7 @@ func TestRunwayManager_ConcurrentReadsDuringWrites(t *testing.T) {
 
 func TestRunwayManager_ConcurrentCurfewAndAvailability(t *testing.T) {
 	runways := createTestRunways()
-	rm := NewRunwayManager(runways)
+	rm := NewRunwayManager(runways, nil)
 
 	var wg sync.WaitGroup
 
@@ -267,7 +267,7 @@ func TestRunwayManager_ConcurrentCurfewAndAvailability(t *testing.T) {
 
 func TestRunwayManager_ConfigIsCopy(t *testing.T) {
 	runways := createTestRunways()
-	rm := NewRunwayManager(runways)
+	rm := NewRunwayManager(runways, nil)
 
 	// Get configuration
 	config1 := rm.GetActiveConfiguration()

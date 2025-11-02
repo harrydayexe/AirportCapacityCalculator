@@ -87,7 +87,7 @@ func NewWorld(airport airport.Airport, startTime, endTime time.Time) *World {
 	}
 
 	// Initialize runway manager (single source of truth for active runways)
-	world.RunwayManager = NewRunwayManager(airport.Runways)
+	world.RunwayManager = NewRunwayManager(airport.Runways, airport.RunwayCompatibility)
 
 	// Set initial active runway configuration (all runways available)
 	world.ActiveRunwayConfiguration = world.RunwayManager.GetActiveConfiguration()

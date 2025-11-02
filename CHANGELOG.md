@@ -7,6 +7,148 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - Runway Compatibility and Maximum Capacity Selection
+
+**Runway Compatibility Graph** (`internal/airport/runway_compatibility.go`)
+- New `RunwayCompatibility` struct with graph-based adjacency list representation
+- Defines which runways can operate simultaneously (e.g., parallel runways compatible, crossing runways incompatible)
+- Validation ensures symmetric relationships and no invalid references
+- Helper methods: `IsCompatible()`, `GetCompatibleRunways()`, `Validate()`
+- Support for nil compatibility (backward compatible: all runways compatible)
+
+**Maximum Capacity Configuration Selection** (`internal/simulation/runway_manager.go`)
+- Implemented Bron-Kerbosch algorithm to find all maximal compatible runway sets (maximal cliques)
+- Selects configuration with highest total theoretical capacity (sum of individual runway capacities)
+- Capacity-based selection: prefers higher-capacity single runway over lower-capacity pairs
+- Tie-breaking: when capacities equal, prefers fewer runways (simpler operations)
+- Lazy computation: maximal cliques computed on first use and cached
+
+**Airport Model Updates** (`internal/airport/airport.go`)
+- Added optional `RunwayCompatibility` field to Airport struct
+- Nil compatibility maintains backward compatibility (all runways can operate together)
+
+**Algorithm Implementation:**
+- Bron-Kerbosch recursive backtracking algorithm for maximal clique enumeration
+- Set operations: intersection, subset checking, element removal
+- Capacity calculation: `duration / MinimumSeparation` per runway, summed across configuration
+- Thread-safe: all operations protected by existing RWMutex
+
+### Changed
+
+**RunwayManager Constructor** (`internal/simulation/runway_manager.go`)
+- Updated `NewRunwayManager()` signature to accept optional `*RunwayCompatibility` parameter
+- Maintains backward compatibility: nil compatibility uses original behavior (all runways active)
+
+**Active Configuration Logic** (`internal/simulation/runway_manager.go:calculateActiveConfiguration()`)
+- Now uses compatibility graph to determine valid runway combinations
+- Selects optimal configuration based on maximum theoretical capacity
+- Falls back to original behavior when compatibility is nil
+
+**World Initialization** (`internal/simulation/world.go`)
+- Passes `airport.RunwayCompatibility` to RunwayManager constructor
+- No other changes required (seamless integration)
+
+### Technical Details
+
+**Compatibility Graph Representation:**
+```go
+type RunwayCompatibility struct {
+    CompatibleWith map[string][]string  // Adjacency list
+}
+```
+
+**Example - Crossing Runways:**
+```go
+// 09L and 09R are parallel (compatible)
+// 18 crosses both (incompatible with either)
+compatibility := &RunwayCompatibility{
+    CompatibleWith: map[string][]string{
+        "09L": {"09R"},
+        "09R": {"09L"},
+        "18":  {},
+    },
+}
+```
+
+**Selection Algorithm:**
+1. Find all maximal cliques using Bron-Kerbosch
+2. Filter cliques to subsets of available runways
+3. Calculate capacity for each valid configuration
+4. Select configuration with highest capacity
+5. On tie: prefer fewer runways
+
+**Capacity Calculation:**
+- Reference duration: 1 hour (3600 seconds)
+- Per-runway capacity: 3600 / MinimumSeparation (in seconds)
+- Configuration capacity: sum of all runways in configuration
+
+**Validation:**
+- Symmetry: if A→B then B→A must exist
+- No invalid references to non-existent runways
+- All runways must appear in compatibility graph
+- Self-loops ignored (runway always compatible with itself)
+
+### Testing
+
+**New Test Files:**
+- `runway_compatibility_test.go`: 20 validation and helper method tests
+- `runway_manager_compatibility_test.go`: 12 comprehensive algorithm tests
+
+**Test Coverage:**
+1. Simple crossing runways (perpendicular, incompatible)
+2. Parallel runways (all compatible together)
+3. User's specific example (RWY1 allows RWY2 OR RWY3, not both)
+4. Capacity-based selection (150 mvmt/hr single runway beats 60+60 mvmt/hr pair)
+5. Tie-breaking (prefers 1 runway over 2 when capacity equal)
+6. Complex airport (LAX-style: two pairs of parallel runways)
+7. Backward compatibility (nil compatibility = all compatible)
+8. Single runway airport edge case
+9. Partial availability (some runways under maintenance)
+10. Changi-style (six runways with complex compatibility)
+11. Maximal cliques verification (Bron-Kerbosch correctness)
+12. Thread safety during concurrent configuration changes
+
+**All Tests Pass:**
+- All 20 validation tests pass
+- All 12 algorithm tests pass
+- All existing tests updated and passing
+- Race detector clean (`go test -race`)
+
+### Benefits
+
+1. **Realistic Modeling**: Accounts for crossing runways and geometric constraints
+2. **Optimal Capacity**: Automatically selects configuration with maximum throughput
+3. **Flexible**: User-defined compatibility graphs support any airport layout
+4. **Efficient**: Pre-computed maximal cliques, cached for performance
+5. **Backward Compatible**: nil compatibility preserves existing behavior
+6. **Well-Tested**: Comprehensive test suite with real-world scenarios
+
+### Migration Notes
+
+**No Breaking Changes:**
+- Existing code continues to work (nil compatibility = all runways compatible)
+- RunwayManager constructor accepts new optional parameter
+
+**To Use Runway Compatibility:**
+```go
+airport := airport.Airport{
+    Name: "Example Airport",
+    Runways: []airport.Runway{ /* runways */ },
+    RunwayCompatibility: airport.NewRunwayCompatibility(map[string][]string{
+        "09L": {"09R"},
+        "09R": {"09L"},
+        "18":  {},
+    }),
+}
+```
+
+**For Contributors:**
+- Compatibility defined at Airport level (not policy-based)
+- RunwayManager handles selection automatically
+- To add new constraints: extend RunwayCompatibility or modify selection algorithm
+
+---
+
 ### Added - Event-Based Runway Management Architecture
 
 **Thread-Safe RunwayManager** (`internal/simulation/runway_manager.go`)
