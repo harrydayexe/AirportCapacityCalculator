@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/harrydayexe/AirportCapacityCalculator/internal/airport"
+	"github.com/harrydayexe/AirportCapacityCalculator/internal/simulation/event"
 )
 
 func TestNewCurfewPolicy(t *testing.T) {
@@ -42,129 +42,154 @@ func TestCurfewPolicy_Name(t *testing.T) {
 	}
 }
 
-func TestCurfewPolicy_Apply(t *testing.T) {
+func TestCurfewPolicy_GenerateEvents(t *testing.T) {
 	tests := []struct {
-		name               string
-		startTime          time.Time
-		endTime            time.Time
-		initialHours       float32
-		expectedReduction  float32 // daily reduction hours * 365
-		expectOperatingSet bool
+		name                    string
+		curfewStartTime         time.Time
+		curfewEndTime           time.Time
+		simStartTime            time.Time
+		simEndTime              time.Time
+		expectedCurfewStarts    int
+		expectedCurfewEnds      int
+		verifyFirstEventTime    bool
+		expectedFirstEventHour  int
+		expectedFirstEventMin   int
 	}{
 		{
-			name:               "7 hour nightly curfew (11pm-6am)",
-			startTime:          time.Date(2024, 1, 1, 23, 0, 0, 0, time.UTC),
-			endTime:            time.Date(2024, 1, 2, 6, 0, 0, 0, time.UTC),
-			initialHours:       8760, // Full year
-			expectedReduction:  7 * 365,
-			expectOperatingSet: true,
+			name:                    "7 hour nightly curfew (11pm-6am) for 1 week",
+			curfewStartTime:         time.Date(2024, 1, 1, 23, 0, 0, 0, time.UTC),
+			curfewEndTime:           time.Date(2024, 1, 2, 6, 0, 0, 0, time.UTC),
+			simStartTime:            time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			simEndTime:              time.Date(2024, 1, 8, 6, 0, 0, 0, time.UTC), // Extended to include last curfew end
+			expectedCurfewStarts:    7,
+			expectedCurfewEnds:      7,
+			verifyFirstEventTime:    true,
+			expectedFirstEventHour:  23,
+			expectedFirstEventMin:   0,
 		},
 		{
-			name:               "4 hour curfew (midnight-4am)",
-			startTime:          time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-			endTime:            time.Date(2024, 1, 1, 4, 0, 0, 0, time.UTC),
-			initialHours:       8760,
-			expectedReduction:  4 * 365,
-			expectOperatingSet: true,
+			name:                    "Full year simulation",
+			curfewStartTime:         time.Date(2024, 1, 1, 23, 0, 0, 0, time.UTC),
+			curfewEndTime:           time.Date(2024, 1, 2, 6, 0, 0, 0, time.UTC),
+			simStartTime:            time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			simEndTime:              time.Date(2025, 1, 1, 6, 0, 0, 0, time.UTC), // Extended to include last curfew end
+			expectedCurfewStarts:    366, // 2024 is a leap year
+			expectedCurfewEnds:      366,
+			verifyFirstEventTime:    false,
 		},
 		{
-			name:               "12 hour curfew (8pm-8am)",
-			startTime:          time.Date(2024, 1, 1, 20, 0, 0, 0, time.UTC),
-			endTime:            time.Date(2024, 1, 2, 8, 0, 0, 0, time.UTC),
-			initialHours:       8760,
-			expectedReduction:  12 * 365,
-			expectOperatingSet: true,
-		},
-		{
-			name:               "Zero initial hours defaults to full year",
-			startTime:          time.Date(2024, 1, 1, 23, 0, 0, 0, time.UTC),
-			endTime:            time.Date(2024, 1, 2, 6, 0, 0, 0, time.UTC),
-			initialHours:       0, // Should default to 8760
-			expectedReduction:  7 * 365,
-			expectOperatingSet: true,
+			name:                    "4 hour curfew (midnight-4am)",
+			curfewStartTime:         time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			curfewEndTime:           time.Date(2024, 1, 1, 4, 0, 0, 0, time.UTC),
+			simStartTime:            time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			simEndTime:              time.Date(2024, 1, 4, 0, 0, 0, 0, time.UTC), // 3 days
+			expectedCurfewStarts:    3,
+			expectedCurfewEnds:      3,
+			verifyFirstEventTime:    true,
+			expectedFirstEventHour:  0,
+			expectedFirstEventMin:   0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			policy, err := NewCurfewPolicy(tt.startTime, tt.endTime)
+			policy, err := NewCurfewPolicy(tt.curfewStartTime, tt.curfewEndTime)
 			if err != nil {
 				t.Fatalf("NewCurfewPolicy failed: %v", err)
 			}
-			state := &mockSimulationState{
-				operatingHours: tt.initialHours,
-				availableRunways: []airport.Runway{
-					{RunwayDesignation: "09L"},
-				},
-			}
 
-			err = policy.Apply(context.Background(), state, testLogger())
+			world := newMockEventWorld(tt.simStartTime, tt.simEndTime, []string{"09L"})
+
+			err = policy.GenerateEvents(context.Background(), world)
 			if err != nil {
-				t.Fatalf("Apply failed: %v", err)
+				t.Fatalf("GenerateEvents failed: %v", err)
 			}
 
-			if tt.expectOperatingSet {
-				expectedHours := tt.initialHours
-				if expectedHours == 0 {
-					expectedHours = 8760 // default
-				}
-				expectedHours -= tt.expectedReduction
+			// Count events by type
+			curfewStarts := world.CountEventsByType(event.CurfewStartType)
+			curfewEnds := world.CountEventsByType(event.CurfewEndType)
 
-				// Allow for small floating point differences
-				diff := state.operatingHours - expectedHours
-				if diff < -0.01 || diff > 0.01 {
-					t.Errorf("expected operating hours %v, got %v (reduction: %v)", expectedHours, state.operatingHours, tt.expectedReduction)
+			if curfewStarts != tt.expectedCurfewStarts {
+				t.Errorf("expected %d curfew start events, got %d", tt.expectedCurfewStarts, curfewStarts)
+			}
+
+			if curfewEnds != tt.expectedCurfewEnds {
+				t.Errorf("expected %d curfew end events, got %d", tt.expectedCurfewEnds, curfewEnds)
+			}
+
+			// Verify first event timing
+			if tt.verifyFirstEventTime && len(world.GetEvents()) > 0 {
+				firstEvent := world.GetEvents()[0]
+				if firstEvent.Type() == event.CurfewStartType {
+					eventTime := firstEvent.Time()
+					if eventTime.Hour() != tt.expectedFirstEventHour || eventTime.Minute() != tt.expectedFirstEventMin {
+						t.Errorf("expected first curfew start at %02d:%02d, got %02d:%02d",
+							tt.expectedFirstEventHour, tt.expectedFirstEventMin,
+							eventTime.Hour(), eventTime.Minute())
+					}
+				}
+			}
+
+			// Verify events are in chronological pairs (start, then end)
+			events := world.GetEvents()
+			for i := 0; i < len(events)-1; i += 2 {
+				if i+1 >= len(events) {
+					break
+				}
+				startEvent := events[i]
+				endEvent := events[i+1]
+
+				if startEvent.Type() != event.CurfewStartType {
+					t.Errorf("event %d should be CurfewStart, got %s", i, startEvent.Type())
+				}
+				if endEvent.Type() != event.CurfewEndType {
+					t.Errorf("event %d should be CurfewEnd, got %s", i+1, endEvent.Type())
 				}
 
-				// Ensure hours never go negative
-				if state.operatingHours < 0 {
-					t.Errorf("operating hours should never be negative, got %v", state.operatingHours)
+				// End should be after start
+				if !endEvent.Time().After(startEvent.Time()) {
+					t.Errorf("curfew end (%v) should be after curfew start (%v)",
+						endEvent.Time(), startEvent.Time())
 				}
 			}
 		})
 	}
 }
 
-func TestCurfewPolicy_Apply_InvalidState(t *testing.T) {
-	startTime := time.Date(2024, 1, 1, 23, 0, 0, 0, time.UTC)
-	endTime := time.Date(2024, 1, 2, 6, 0, 0, 0, time.UTC)
-	policy, err := NewCurfewPolicy(startTime, endTime)
+func TestCurfewPolicy_GenerateEvents_OvernightCurfew(t *testing.T) {
+	// Test an overnight curfew (11pm-6am)
+	curfewStartTime := time.Date(2024, 1, 1, 23, 0, 0, 0, time.UTC)
+	curfewEndTime := time.Date(2024, 1, 2, 6, 0, 0, 0, time.UTC)
+
+	policy, err := NewCurfewPolicy(curfewStartTime, curfewEndTime)
 	if err != nil {
 		t.Fatalf("NewCurfewPolicy failed: %v", err)
 	}
 
-	// Test with an invalid state type
-	err = policy.Apply(context.Background(), "invalid state", testLogger())
-	if err == nil {
-		t.Error("expected error for invalid state type, got nil")
-	}
-}
+	simStart := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	simEnd := time.Date(2024, 1, 3, 0, 0, 0, 0, time.UTC) // 2 days
 
-func TestCurfewPolicy_Apply_MultiDayCurfew(t *testing.T) {
-	// Test a curfew that spans multiple days (should normalize to daily)
-	startTime := time.Date(2024, 1, 1, 23, 0, 0, 0, time.UTC)
-	endTime := time.Date(2024, 1, 3, 6, 0, 0, 0, time.UTC) // 31 hours later
+	world := newMockEventWorld(simStart, simEnd, []string{"09L"})
 
-	policy, err := NewCurfewPolicy(startTime, endTime)
+	err = policy.GenerateEvents(context.Background(), world)
 	if err != nil {
-		t.Fatalf("NewCurfewPolicy failed: %v", err)
-	}
-	state := &mockSimulationState{
-		operatingHours: 8760,
+		t.Fatalf("GenerateEvents failed: %v", err)
 	}
 
-	err = policy.Apply(context.Background(), state, testLogger())
-	if err != nil {
-		t.Fatalf("Apply failed: %v", err)
-	}
+	// Verify the curfew end times are on the next day
+	events := world.GetEvents()
+	for i := 0; i < len(events)-1; i += 2 {
+		if i+1 >= len(events) {
+			break
+		}
+		startEvent := events[i]
+		endEvent := events[i+1]
 
-	// Should normalize to daily curfew (31 hours % 24 = 7 hours)
-	expectedReduction := float32(7 * 365)
-	expectedHours := float32(8760) - expectedReduction
-
-	diff := state.operatingHours - expectedHours
-	if diff < -0.01 || diff > 0.01 {
-		t.Errorf("multi-day curfew should normalize: expected %v hours, got %v", expectedHours, state.operatingHours)
+		// For overnight curfew, end should be on the next day
+		if endEvent.Time().Day() != startEvent.Time().Day()+1 {
+			t.Errorf("overnight curfew end should be next day: start=%v, end=%v",
+				startEvent.Time(), endEvent.Time())
+		}
 	}
 }
 

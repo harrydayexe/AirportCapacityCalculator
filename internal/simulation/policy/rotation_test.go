@@ -2,39 +2,11 @@ package policy
 
 import (
 	"context"
-	"log/slog"
-	"os"
 	"testing"
 
-	"github.com/harrydayexe/AirportCapacityCalculator/internal/airport"
+	"github.com/harrydayexe/AirportCapacityCalculator/internal/simulation/event"
+	"time"
 )
-
-// testLogger creates a test logger that discards output
-func testLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-}
-
-// mockSimulationState provides a test implementation of the state interface
-type mockSimulationState struct {
-	operatingHours   float32
-	availableRunways []airport.Runway
-}
-
-func (m *mockSimulationState) GetOperatingHours() float32 {
-	return m.operatingHours
-}
-
-func (m *mockSimulationState) SetOperatingHours(hours float32) {
-	m.operatingHours = hours
-}
-
-func (m *mockSimulationState) GetAvailableRunways() []airport.Runway {
-	return m.availableRunways
-}
-
-func (m *mockSimulationState) SetAvailableRunways(runways []airport.Runway) {
-	m.availableRunways = runways
-}
 
 func TestNewDefaultRunwayRotationPolicy(t *testing.T) {
 	tests := []struct {
@@ -43,7 +15,7 @@ func TestNewDefaultRunwayRotationPolicy(t *testing.T) {
 	}{
 		{"NoRotation", NoRotation},
 		{"TimeBasedRotation", TimeBasedRotation},
-		{"BalancedRotation", BalancedRotation},
+		{"PreferentialRunway", PreferentialRunway},
 		{"NoiseOptimizedRotation", NoiseOptimizedRotation},
 	}
 
@@ -51,7 +23,7 @@ func TestNewDefaultRunwayRotationPolicy(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			policy := NewDefaultRunwayRotationPolicy(tt.strategy)
 			if policy == nil {
-				t.Fatal("NewDefaultRunwayRotationPolicy returned nil")
+				t.Fatal("expected non-nil policy")
 			}
 			if policy.strategy != tt.strategy {
 				t.Errorf("expected strategy %v, got %v", tt.strategy, policy.strategy)
@@ -61,241 +33,206 @@ func TestNewDefaultRunwayRotationPolicy(t *testing.T) {
 }
 
 func TestRunwayRotationPolicy_Name(t *testing.T) {
-	tests := []struct {
-		strategy     RotationStrategy
-		expectedName string
-	}{
-		{NoRotation, "RunwayRotationPolicy(NoRotation)"},
-		{TimeBasedRotation, "RunwayRotationPolicy(TimeBasedRotation)"},
-		{BalancedRotation, "RunwayRotationPolicy(BalancedRotation)"},
-		{NoiseOptimizedRotation, "RunwayRotationPolicy(NoiseOptimizedRotation)"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.expectedName, func(t *testing.T) {
-			policy := NewDefaultRunwayRotationPolicy(tt.strategy)
-			name := policy.Name()
-			if name != tt.expectedName {
-				t.Errorf("expected name %q, got %q", tt.expectedName, name)
-			}
-		})
-	}
-}
-
-func TestRunwayRotationPolicy_Apply_NoRotation(t *testing.T) {
 	policy := NewDefaultRunwayRotationPolicy(NoRotation)
-	state := &mockSimulationState{
-		operatingHours: 8760,
-		availableRunways: []airport.Runway{
-			{RunwayDesignation: "09L"},
-			{RunwayDesignation: "27R"},
-		},
-	}
-
-	err := policy.Apply(context.Background(), state, testLogger())
-	if err != nil {
-		t.Fatalf("Apply failed: %v", err)
-	}
-
-	// NoRotation should not modify operating hours (100% efficiency)
-	expectedHours := float32(8760)
-	if state.GetOperatingHours() != expectedHours {
-		t.Errorf("expected operating hours %f, got %f", expectedHours, state.GetOperatingHours())
+	expectedName := "RunwayRotationPolicy(NoRotation)"
+	if policy.Name() != expectedName {
+		t.Errorf("expected name %q, got %q", expectedName, policy.Name())
 	}
 }
 
-func TestRunwayRotationPolicy_Apply_TimeBasedRotation(t *testing.T) {
-	policy := NewDefaultRunwayRotationPolicy(TimeBasedRotation)
-	state := &mockSimulationState{
-		operatingHours: 8760,
-		availableRunways: []airport.Runway{
-			{RunwayDesignation: "09L"},
-			{RunwayDesignation: "27R"},
-		},
-	}
-
-	err := policy.Apply(context.Background(), state, testLogger())
-	if err != nil {
-		t.Fatalf("Apply failed: %v", err)
-	}
-
-	// TimeBasedRotation should apply 95% efficiency (5% reduction)
-	expectedHours := float32(8760 * 0.95)
-	if state.GetOperatingHours() != expectedHours {
-		t.Errorf("expected operating hours %f, got %f", expectedHours, state.GetOperatingHours())
-	}
-}
-
-func TestRunwayRotationPolicy_Apply_BalancedRotation(t *testing.T) {
-	policy := NewDefaultRunwayRotationPolicy(BalancedRotation)
-	state := &mockSimulationState{
-		operatingHours: 8760,
-		availableRunways: []airport.Runway{
-			{RunwayDesignation: "09L"},
-			{RunwayDesignation: "27R"},
-		},
-	}
-
-	err := policy.Apply(context.Background(), state, testLogger())
-	if err != nil {
-		t.Fatalf("Apply failed: %v", err)
-	}
-
-	// BalancedRotation should apply 90% efficiency (10% reduction)
-	expectedHours := float32(8760 * 0.90)
-	if state.GetOperatingHours() != expectedHours {
-		t.Errorf("expected operating hours %f, got %f", expectedHours, state.GetOperatingHours())
-	}
-}
-
-func TestRunwayRotationPolicy_Apply_NoiseOptimizedRotation(t *testing.T) {
-	policy := NewDefaultRunwayRotationPolicy(NoiseOptimizedRotation)
-	state := &mockSimulationState{
-		operatingHours: 8760,
-		availableRunways: []airport.Runway{
-			{RunwayDesignation: "09L"},
-			{RunwayDesignation: "27R"},
-		},
-	}
-
-	err := policy.Apply(context.Background(), state, testLogger())
-	if err != nil {
-		t.Fatalf("Apply failed: %v", err)
-	}
-
-	// NoiseOptimizedRotation should apply 80% efficiency (20% reduction)
-	expectedHours := float32(8760 * 0.80)
-	if state.GetOperatingHours() != expectedHours {
-		t.Errorf("expected operating hours %f, got %f", expectedHours, state.GetOperatingHours())
-	}
-}
-
-func TestRunwayRotationPolicy_Apply_DefaultOperatingHours(t *testing.T) {
-	// Test that policy correctly handles zero operating hours by defaulting to 8760
-	policy := NewDefaultRunwayRotationPolicy(BalancedRotation)
-	state := &mockSimulationState{
-		operatingHours: 0, // Not set, should default to 8760
-		availableRunways: []airport.Runway{
-			{RunwayDesignation: "09L"},
-		},
-	}
-
-	err := policy.Apply(context.Background(), state, testLogger())
-	if err != nil {
-		t.Fatalf("Apply failed: %v", err)
-	}
-
-	// Should apply 90% efficiency to default 8760 hours
-	expectedHours := float32(8760 * 0.90)
-	if state.GetOperatingHours() != expectedHours {
-		t.Errorf("expected operating hours %f, got %f", expectedHours, state.GetOperatingHours())
-	}
-}
-
-func TestRunwayRotationPolicy_Apply_EfficiencyMultipliers(t *testing.T) {
-	// Test all strategies to verify the efficiency multiplier values
+func TestRunwayRotationPolicy_GenerateEvents(t *testing.T) {
 	tests := []struct {
-		strategy             RotationStrategy
-		expectedMultiplier   float32
-		expectedReduction    float32
-		initialHours         float32
+		name               string
+		strategy           RotationStrategy
+		expectedMultiplier float32
 	}{
-		{NoRotation, 1.0, 0.0, 10000},
-		{TimeBasedRotation, 0.95, 0.05, 10000},
-		{BalancedRotation, 0.90, 0.10, 10000},
-		{NoiseOptimizedRotation, 0.80, 0.20, 10000},
+		{"NoRotation", NoRotation, 1.0},
+		{"TimeBasedRotation", TimeBasedRotation, 0.95},
+		{"PreferentialRunway", PreferentialRunway, 0.90},
+		{"NoiseOptimizedRotation", NoiseOptimizedRotation, 0.80},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.strategy.String(), func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			policy := NewDefaultRunwayRotationPolicy(tt.strategy)
-			state := &mockSimulationState{
-				operatingHours: tt.initialHours,
-				availableRunways: []airport.Runway{
-					{RunwayDesignation: "09L"},
-				},
-			}
 
-			err := policy.Apply(context.Background(), state, testLogger())
+			simStart := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+			simEnd := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+			world := newMockEventWorld(simStart, simEnd, []string{"09L", "09R"})
+
+			err := policy.GenerateEvents(context.Background(), world)
 			if err != nil {
-				t.Fatalf("Apply failed: %v", err)
+				t.Fatalf("GenerateEvents failed: %v", err)
 			}
 
-			expectedHours := tt.initialHours * tt.expectedMultiplier
-			if state.GetOperatingHours() != expectedHours {
-				t.Errorf("expected operating hours %f (%.0f%% of %f), got %f",
-					expectedHours, tt.expectedMultiplier*100, tt.initialHours, state.GetOperatingHours())
+			// Should generate exactly one rotation change event
+			rotationEvents := world.CountEventsByType(event.RotationChangeType)
+			if rotationEvents != 1 {
+				t.Errorf("expected 1 rotation event, got %d", rotationEvents)
 			}
 
-			// Verify the reduction percentage
-			actualReduction := (tt.initialHours - state.GetOperatingHours()) / tt.initialHours
-			if actualReduction != tt.expectedReduction {
-				t.Errorf("expected %.0f%% reduction, got %.0f%%", tt.expectedReduction*100, actualReduction*100)
+			// Verify the event is at the start time
+			events := world.GetEvents()
+			if len(events) == 0 {
+				t.Fatal("expected at least one event")
 			}
-		})
-	}
-}
 
-func TestRunwayRotationPolicy_Apply_InvalidState(t *testing.T) {
-	policy := NewDefaultRunwayRotationPolicy(BalancedRotation)
+			rotEvent := events[0]
+			if rotEvent.Type() != event.RotationChangeType {
+				t.Errorf("expected RotationChange event, got %s", rotEvent.Type())
+			}
 
-	// Pass an invalid state type
-	err := policy.Apply(context.Background(), "invalid state", testLogger())
-	if err == nil {
-		t.Fatal("expected error for invalid state type, got nil")
-	}
+			if !rotEvent.Time().Equal(simStart) {
+				t.Errorf("expected event at sim start (%v), got %v", simStart, rotEvent.Time())
+			}
 
-	expectedError := "invalid state type for RunwayRotationPolicy"
-	if err.Error() != expectedError {
-		t.Errorf("expected error %q, got %q", expectedError, err.Error())
-	}
-}
-
-func TestRotationStrategy_String(t *testing.T) {
-	tests := []struct {
-		strategy RotationStrategy
-		expected string
-	}{
-		{NoRotation, "NoRotation"},
-		{TimeBasedRotation, "TimeBasedRotation"},
-		{BalancedRotation, "BalancedRotation"},
-		{NoiseOptimizedRotation, "NoiseOptimizedRotation"},
-		{RotationStrategy(999), "Unknown"}, // Invalid strategy
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.expected, func(t *testing.T) {
-			result := tt.strategy.String()
-			if result != tt.expected {
-				t.Errorf("expected %q, got %q", tt.expected, result)
+			// Verify the multiplier (cast to concrete type to check)
+			if rotChangeEvent, ok := rotEvent.(*event.RotationChangeEvent); ok {
+				if rotChangeEvent.Multiplier() != tt.expectedMultiplier {
+					t.Errorf("expected multiplier %f, got %f", tt.expectedMultiplier, rotChangeEvent.Multiplier())
+				}
+			} else {
+				t.Error("could not cast event to RotationChangeEvent")
 			}
 		})
 	}
 }
 
-func TestRunwayRotationPolicy_Apply_CompoundPolicies(t *testing.T) {
-	// Test that rotation policy works correctly when applied after another policy
-	// that has already modified operating hours (e.g., curfew policy)
+func TestRunwayRotationPolicy_CustomConfiguration(t *testing.T) {
+	customConfig := NewRotationPolicyConfiguration(map[RotationStrategy]float32{
+		NoRotation:             0.99,
+		TimeBasedRotation:      0.85,
+		PreferentialRunway:     0.75,
+		NoiseOptimizedRotation: 0.65,
+	})
 
-	policy := NewDefaultRunwayRotationPolicy(BalancedRotation)
+	policy := NewRunwayRotationPolicy(PreferentialRunway, customConfig)
 
-	// Simulate state after a curfew policy has reduced hours from 8760 to 7000
-	state := &mockSimulationState{
-		operatingHours: 7000,
-		availableRunways: []airport.Runway{
-			{RunwayDesignation: "09L"},
-			{RunwayDesignation: "27R"},
-		},
-	}
+	simStart := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	simEnd := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	world := newMockEventWorld(simStart, simEnd, []string{"09L"})
 
-	err := policy.Apply(context.Background(), state, testLogger())
+	err := policy.GenerateEvents(context.Background(), world)
 	if err != nil {
-		t.Fatalf("Apply failed: %v", err)
+		t.Fatalf("GenerateEvents failed: %v", err)
 	}
 
-	// Should apply 90% efficiency to the already-reduced 7000 hours
-	expectedHours := float32(7000 * 0.90)
-	if state.GetOperatingHours() != expectedHours {
-		t.Errorf("expected operating hours %f, got %f", expectedHours, state.GetOperatingHours())
+	events := world.GetEvents()
+	if len(events) == 0 {
+		t.Fatal("expected at least one event")
+	}
+
+	if rotChangeEvent, ok := events[0].(*event.RotationChangeEvent); ok {
+		expectedMultiplier := float32(0.75)
+		if rotChangeEvent.Multiplier() != expectedMultiplier {
+			t.Errorf("expected custom multiplier %f, got %f", expectedMultiplier, rotChangeEvent.Multiplier())
+		}
+	}
+}
+
+func TestRunwayRotationPolicy_TimeBoundedSchedule(t *testing.T) {
+	// Test time-bounded rotation (weekends only, 6 AM - 11 PM)
+	schedule := &RotationSchedule{
+		StartHour:  6,  // 6 AM
+		EndHour:    23, // 11 PM
+		DaysOfWeek: []time.Weekday{time.Saturday, time.Sunday},
+	}
+
+	config := NewDefaultRotationPolicyConfiguration()
+	policy := NewRunwayRotationPolicyWithSchedule(TimeBasedRotation, config, schedule)
+
+	// Simulate 2 weeks
+	simStart := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) // Monday
+	simEnd := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	world := newMockEventWorld(simStart, simEnd, []string{"09L"})
+
+	err := policy.GenerateEvents(context.Background(), world)
+	if err != nil {
+		t.Fatalf("GenerateEvents failed: %v", err)
+	}
+
+	// Should generate events for 2 weekends:
+	// - Saturday Jan 6: start (6 AM), end (11 PM)
+	// - Sunday Jan 7: start (6 AM), end (11 PM)
+	// - Saturday Jan 13: start (6 AM), end (11 PM)
+	// - Sunday Jan 14: start (6 AM), end (11 PM)
+	// Total: 8 events
+	rotationEvents := world.CountEventsByType(event.RotationChangeType)
+	expectedEvents := 8
+	if rotationEvents != expectedEvents {
+		t.Errorf("expected %d rotation events, got %d", expectedEvents, rotationEvents)
+	}
+
+	events := world.GetEvents()
+
+	// Verify alternating pattern: 0.95 (start) -> 1.0 (end) -> 0.95 (start) -> 1.0 (end)...
+	expectedMultipliers := []float32{0.95, 1.0, 0.95, 1.0, 0.95, 1.0, 0.95, 1.0}
+	for i, expectedMult := range expectedMultipliers {
+		if i >= len(events) {
+			t.Fatalf("not enough events: expected at least %d, got %d", i+1, len(events))
+		}
+
+		rotEvent, ok := events[i].(*event.RotationChangeEvent)
+		if !ok {
+			t.Errorf("event %d is not a RotationChangeEvent", i)
+			continue
+		}
+
+		if rotEvent.Multiplier() != expectedMult {
+			t.Errorf("event %d: expected multiplier %f, got %f", i, expectedMult, rotEvent.Multiplier())
+		}
+	}
+}
+
+func TestRunwayRotationPolicy_TimeBoundedSchedule_AllDays(t *testing.T) {
+	// Test time-bounded rotation applied every day (9 AM - 5 PM)
+	schedule := &RotationSchedule{
+		StartHour:  9,  // 9 AM
+		EndHour:    17, // 5 PM
+		DaysOfWeek: nil, // All days
+	}
+
+	config := NewDefaultRotationPolicyConfiguration()
+	policy := NewRunwayRotationPolicyWithSchedule(PreferentialRunway, config, schedule)
+
+	// Simulate 3 days
+	simStart := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	simEnd := time.Date(2024, 1, 4, 0, 0, 0, 0, time.UTC)
+	world := newMockEventWorld(simStart, simEnd, []string{"09L"})
+
+	err := policy.GenerateEvents(context.Background(), world)
+	if err != nil {
+		t.Fatalf("GenerateEvents failed: %v", err)
+	}
+
+	// Should generate events for 3 days:
+	// - Jan 1: start (9 AM), end (5 PM)
+	// - Jan 2: start (9 AM), end (5 PM)
+	// - Jan 3: start (9 AM), end (5 PM)
+	// Total: 6 events
+	rotationEvents := world.CountEventsByType(event.RotationChangeType)
+	expectedEvents := 6
+	if rotationEvents != expectedEvents {
+		t.Errorf("expected %d rotation events, got %d", expectedEvents, rotationEvents)
+	}
+
+	events := world.GetEvents()
+
+	// Verify the first event is at 9 AM on Jan 1 with multiplier 0.90 (PreferentialRunway)
+	if len(events) > 0 {
+		firstEvent, ok := events[0].(*event.RotationChangeEvent)
+		if !ok {
+			t.Fatal("first event is not a RotationChangeEvent")
+		}
+
+		expectedTime := time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC)
+		if !firstEvent.Time().Equal(expectedTime) {
+			t.Errorf("first event time: expected %v, got %v", expectedTime, firstEvent.Time())
+		}
+
+		expectedMult := float32(0.90)
+		if firstEvent.Multiplier() != expectedMult {
+			t.Errorf("first event multiplier: expected %f, got %f", expectedMult, firstEvent.Multiplier())
+		}
 	}
 }

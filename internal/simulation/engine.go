@@ -3,12 +3,11 @@ package simulation
 import (
 	"context"
 	"log/slog"
-
-	"github.com/harrydayexe/AirportCapacityCalculator/internal/airport"
+	"time"
 )
 
-// Engine is the core simulation engine that calculates total movements
-// based on the state modified by policies and plugins.
+// Engine is the core event-driven simulation engine that calculates total movements
+// by processing events chronologically and calculating capacity for each time window.
 type Engine struct {
 	logger *slog.Logger
 }
@@ -20,79 +19,177 @@ func NewEngine(logger *slog.Logger) *Engine {
 	}
 }
 
-// Calculate computes the total annual movements based on the simulation state.
-// It considers:
-// - Available runways (after policies like maintenance are applied)
-// - Operating hours (after policies like curfew are applied)
-// - Minimum separation requirements from the airport configuration
-func (e *Engine) Calculate(ctx context.Context, state *SimulationState) (float32, error) {
-	e.logger.InfoContext(ctx, "Starting capacity calculation")
+// Calculate computes total annual movements using event-driven state-window approach.
+// This method processes events chronologically and calculates capacity for each time window.
+func (e *Engine) Calculate(ctx context.Context, world *World) (float32, error) {
+	e.logger.InfoContext(ctx, "Starting event-driven capacity calculation",
+		"airport", world.Airport.Name,
+		"startTime", world.StartTime,
+		"endTime", world.EndTime,
+		"numEvents", world.Events.Len())
 
-	// Determine operating seconds
-	operatingSeconds := e.calculateOperatingSeconds(state)
-	e.logger.InfoContext(ctx, "Operating seconds calculated", "seconds", operatingSeconds)
-
-	// Calculate capacity based on available runways
-	capacity := e.calculateRunwayCapacity(ctx, state.AvailableRunways, operatingSeconds, state.Airport)
-
-	e.logger.InfoContext(ctx, "Total capacity calculated", "movements", capacity)
-
-	return capacity, nil
-}
-
-// calculateOperatingSeconds determines how many seconds per year the airport operates.
-func (e *Engine) calculateOperatingSeconds(state *SimulationState) float32 {
-	operatingHours := state.OperatingHours
-	if operatingHours == 0 {
-		// Default to full year operation if not set by policies
-		operatingHours = HoursPerYear
+	totalCapacity, err := e.processTimeline(ctx, world)
+	if err != nil {
+		return 0, err
 	}
 
-	return operatingHours * SecondsPerHour
+	e.logger.InfoContext(ctx, "Event-driven calculation complete", "totalCapacity", totalCapacity)
+
+	return totalCapacity, nil
 }
 
-// calculateRunwayCapacity calculates the capacity based on runway configuration and operating time.
-func (e *Engine) calculateRunwayCapacity(ctx context.Context, runways []airport.Runway, operatingSeconds float32, airport airport.Airport) float32 {
-	numRunways := len(runways)
+// processTimeline processes events chronologically and calculates capacity for each time window.
+func (e *Engine) processTimeline(ctx context.Context, world *World) (float32, error) {
+	totalCapacity := float32(0)
+	previousEventTime := world.StartTime
 
-	if numRunways == 0 {
-		e.logger.InfoContext(ctx, "No runways available, capacity is 0")
+	e.logger.InfoContext(ctx, "Processing timeline", "numEvents", world.Events.Len())
+
+	// Process events in chronological order
+	eventCount := 0
+	for world.Events.HasNext() {
+		evt := world.Events.Pop()
+		eventTime := evt.Time()
+
+		// Skip events outside simulation period
+		if eventTime.Before(world.StartTime) {
+			e.logger.DebugContext(ctx, "Skipping event before start time",
+				"eventType", evt.Type().String(),
+				"eventTime", eventTime,
+				"startTime", world.StartTime)
+			continue
+		}
+
+		if eventTime.After(world.EndTime) {
+			e.logger.DebugContext(ctx, "Skipping event after end time",
+				"eventType", evt.Type().String(),
+				"eventTime", eventTime,
+				"endTime", world.EndTime)
+			// Put it back for final window calculation
+			previousEventTime = world.EndTime
+			break
+		}
+
+		// Calculate capacity for window [previousEventTime, eventTime]
+		windowDuration := eventTime.Sub(previousEventTime)
+		// TODO: What happens if duration is 0. Probably just skip window calculation?
+		windowCapacity := e.calculateWindowCapacity(ctx, world, windowDuration)
+
+		e.logger.DebugContext(ctx, "Window capacity calculated",
+			"windowStart", previousEventTime,
+			"windowEnd", eventTime,
+			"duration", windowDuration,
+			"capacity", windowCapacity)
+
+		totalCapacity += windowCapacity
+
+		// Apply event (changes world state)
+		e.logger.InfoContext(ctx, "Applying event",
+			"eventType", evt.Type().String(),
+			"eventTime", eventTime)
+
+		if err := evt.Apply(ctx, world); err != nil {
+			e.logger.ErrorContext(ctx, "Failed to apply event",
+				"eventType", evt.Type().String(),
+				"error", err)
+			return 0, err
+		}
+
+		world.CurrentTime = eventTime
+		previousEventTime = eventTime
+		eventCount++
+	}
+
+	// Calculate capacity for final window from last event to end of simulation
+	if previousEventTime.Before(world.EndTime) {
+		finalDuration := world.EndTime.Sub(previousEventTime)
+		finalCapacity := e.calculateWindowCapacity(ctx, world, finalDuration)
+
+		e.logger.DebugContext(ctx, "Final window capacity calculated",
+			"windowStart", previousEventTime,
+			"windowEnd", world.EndTime,
+			"duration", finalDuration,
+			"capacity", finalCapacity)
+
+		totalCapacity += finalCapacity
+	}
+
+	e.logger.InfoContext(ctx, "Timeline processing complete",
+		"eventsProcessed", eventCount,
+		"totalCapacity", totalCapacity)
+
+	return totalCapacity, nil
+}
+
+// calculateWindowCapacity calculates the theoretical maximum capacity for a time window
+// using the active runway configuration (single source of truth from RunwayManager).
+// No validation logic here - the active configuration already accounts for:
+// - Curfew status (empty config during curfew)
+// - Runway availability (maintenance, etc.)
+// - Future: crossing runways, wind direction, etc.
+func (e *Engine) calculateWindowCapacity(ctx context.Context, world *World, duration time.Duration) float32 {
+	durationSeconds := float32(duration.Seconds())
+	capacity := float32(0)
+
+	// Get active runway configuration (single source of truth)
+	activeRunways := world.GetActiveRunwayConfiguration()
+
+	// If no active runways (e.g., during curfew or all under maintenance), capacity is zero
+	if len(activeRunways) == 0 {
 		return 0
 	}
 
-	separationSeconds := float32(airport.MinimumSeparation.Seconds())
-	e.logger.InfoContext(ctx, "Calculating capacity",
-		"numRunways", numRunways,
-		"separationSeconds", separationSeconds)
+	// Sum capacity across all active runways
+	for _, activeRunway := range activeRunways {
+		separationSeconds := float32(activeRunway.Runway.MinimumSeparation.Seconds())
 
-	if numRunways == 1 {
-		// Single runway: capacity = operating_time / separation
-		capacity := operatingSeconds / separationSeconds
-		e.logger.InfoContext(ctx, "Single runway capacity", "capacity", capacity)
-		return capacity
+		// Runway capacity = duration / separation
+		// TODO: In future, adjust based on OperationType (TakeoffOnly, LandingOnly vs Mixed)
+		// TODO: In future, adjust based on Direction (Forward vs Reverse may have different characteristics)
+		runwayCapacity := durationSeconds / separationSeconds
+		capacity += runwayCapacity
 	}
 
-	if numRunways%2 == 0 {
-		// Even number of runways: each runway operates in parallel
-		capacity := operatingSeconds * float32(numRunways) / separationSeconds
-		e.logger.InfoContext(ctx, "Even runway capacity", "capacity", capacity)
-		return capacity
+	// Apply rotation efficiency multiplier
+	capacity *= world.RotationMultiplier
+
+	// Apply gate capacity constraint if present
+	if world.GateCapacityConstraint > 0 {
+		// Gate constraint is in movements per second
+		effectiveGateConstraint := world.GateCapacityConstraint
+
+		// If taxi time overhead is configured, adjust gate capacity
+		if world.TaxiTimeOverhead > 0 {
+			// Taxi time extends the effective turnaround time, reducing sustainable capacity
+			// For example: if base constraint allows 50 mvmt/hour (1 mvmt/72s)
+			// and taxi adds 10 min (600s) overhead, effective becomes 1 mvmt/(72s+600s)
+
+			// Calculate movements per second with taxi overhead
+			// Original: 1 movement per X seconds
+			// With taxi: 1 movement per (X + taxi_overhead) seconds
+			baseSecondsPerMovement := float32(1.0) / effectiveGateConstraint
+			taxiOverheadSeconds := float32(world.TaxiTimeOverhead.Seconds())
+			adjustedSecondsPerMovement := baseSecondsPerMovement + taxiOverheadSeconds
+			effectiveGateConstraint = 1.0 / adjustedSecondsPerMovement
+
+			e.logger.DebugContext(ctx, "Taxi time overhead applied to gate capacity",
+				"baseGateConstraint", world.GateCapacityConstraint,
+				"effectiveGateConstraint", effectiveGateConstraint,
+				"taxiOverhead", world.TaxiTimeOverhead)
+		}
+
+		// Convert to movements for this duration
+		gateConstrainedCapacity := effectiveGateConstraint * durationSeconds
+
+		// Take the minimum of runway capacity and gate-constrained capacity
+		if gateConstrainedCapacity < capacity {
+			e.logger.DebugContext(ctx, "Gate capacity constraint applied",
+				"runwayCapacity", capacity,
+				"gateConstrainedCapacity", gateConstrainedCapacity,
+				"duration", duration)
+			capacity = gateConstrainedCapacity
+		}
 	}
 
-	// Odd number of runways: calculate even + odd separately
-	evenRunways := runways[:numRunways-1]
-	oddRunway := runways[numRunways-1:]
-
-	e.logger.InfoContext(ctx, "Odd number of runways, calculating separately")
-
-	evenCapacity := e.calculateRunwayCapacity(ctx, evenRunways, operatingSeconds, airport)
-	e.logger.InfoContext(ctx, "Even runway subset capacity", "capacity", evenCapacity)
-
-	oddCapacity := e.calculateRunwayCapacity(ctx, oddRunway, operatingSeconds, airport)
-	e.logger.InfoContext(ctx, "Odd runway capacity", "capacity", oddCapacity)
-
-	totalCapacity := evenCapacity + oddCapacity
-	e.logger.InfoContext(ctx, "Total capacity for odd runways", "capacity", totalCapacity)
-
-	return totalCapacity
+	return capacity
 }

@@ -12,28 +12,34 @@ Package airport provides combined airport modeling and calculations.
 
 - [type Airport](<#Airport>)
 - [type Runway](<#Runway>)
+- [type RunwayCompatibility](<#RunwayCompatibility>)
+  - [func NewRunwayCompatibility\(compatibleWith map\[string\]\[\]string\) \*RunwayCompatibility](<#NewRunwayCompatibility>)
+  - [func \(rc \*RunwayCompatibility\) GetCompatibleRunways\(runwayID string, allRunways \[\]string\) \[\]string](<#RunwayCompatibility.GetCompatibleRunways>)
+  - [func \(rc \*RunwayCompatibility\) IsCompatible\(runway1, runway2 string\) bool](<#RunwayCompatibility.IsCompatible>)
+  - [func \(rc \*RunwayCompatibility\) String\(\) string](<#RunwayCompatibility.String>)
+  - [func \(rc \*RunwayCompatibility\) Validate\(runwayIDs \[\]string\) error](<#RunwayCompatibility.Validate>)
 - [type SurfaceType](<#SurfaceType>)
 
 
 <a name="Airport"></a>
-## type Airport
+## type [Airport](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/airport/airport.go#L5-L13>)
 
 Airport represents a physical airport with all its subcomponents.
 
 ```go
 type Airport struct {
-    Name              string        // The commercial name of the airport
-    IATACode          string        // The IATA code of the Airport
-    ICAOCode          string        // The ICAO code of the Airport
-    City              string        // The city where the airport is located
-    Country           string        // The country where the airport is located
-    Runways           []Runway      // A list of runways at the Airport
-    MinimumSeparation time.Duration // Minimum separation time between movements on the same runway
+    Name                string               // The commercial name of the airport
+    IATACode            string               // The IATA code of the Airport
+    ICAOCode            string               // The ICAO code of the Airport
+    City                string               // The city where the airport is located
+    Country             string               // The country where the airport is located
+    Runways             []Runway             // A list of runways at the Airport
+    RunwayCompatibility *RunwayCompatibility // Optional compatibility graph defining which runways can operate simultaneously (nil means all runways compatible)
 }
 ```
 
 <a name="Runway"></a>
-## type Runway
+## type [Runway](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/airport/runway.go#L16-L25>)
 
 Runway represents a physical runway with all operational parameters.
 
@@ -50,8 +56,87 @@ type Runway struct {
 }
 ```
 
+<a name="RunwayCompatibility"></a>
+## type [RunwayCompatibility](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/airport/runway_compatibility.go#L24-L28>)
+
+RunwayCompatibility defines which runways can operate simultaneously. It uses a graph\-based adjacency list representation where each runway has a list of other runways it can operate with.
+
+Example: At an airport with crossing runways 09L, 09R, and 18:
+
+- 09L and 09R are parallel \(compatible with each other\)
+- 18 crosses both 09L and 09R \(incompatible with either\)
+
+This would be represented as:
+
+```
+CompatibleWith: map[string][]string{
+    "09L": {"09R"},
+    "09R": {"09L"},
+    "18":  {},  // Can operate alone but not with others
+}
+```
+
+```go
+type RunwayCompatibility struct {
+    // CompatibleWith maps each runway designation to a list of runways
+    // it can operate with simultaneously.
+    CompatibleWith map[string][]string
+}
+```
+
+<a name="NewRunwayCompatibility"></a>
+### func [NewRunwayCompatibility](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/airport/runway_compatibility.go#L31>)
+
+```go
+func NewRunwayCompatibility(compatibleWith map[string][]string) *RunwayCompatibility
+```
+
+NewRunwayCompatibility creates a new RunwayCompatibility instance.
+
+<a name="RunwayCompatibility.GetCompatibleRunways"></a>
+### func \(\*RunwayCompatibility\) [GetCompatibleRunways](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/airport/runway_compatibility.go#L138>)
+
+```go
+func (rc *RunwayCompatibility) GetCompatibleRunways(runwayID string, allRunways []string) []string
+```
+
+GetCompatibleRunways returns the list of runways compatible with the given runway. If compatibility is nil, returns all other runways in the provided list. The runway itself is not included in the result.
+
+<a name="RunwayCompatibility.IsCompatible"></a>
+### func \(\*RunwayCompatibility\) [IsCompatible](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/airport/runway_compatibility.go#L112>)
+
+```go
+func (rc *RunwayCompatibility) IsCompatible(runway1, runway2 string) bool
+```
+
+IsCompatible checks if two runways can operate simultaneously. If compatibility is nil, returns true \(all runways compatible\). Self\-compatibility always returns true.
+
+<a name="RunwayCompatibility.String"></a>
+### func \(\*RunwayCompatibility\) [String](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/airport/runway_compatibility.go#L162>)
+
+```go
+func (rc *RunwayCompatibility) String() string
+```
+
+String returns a human\-readable representation of the compatibility graph.
+
+<a name="RunwayCompatibility.Validate"></a>
+### func \(\*RunwayCompatibility\) [Validate](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/airport/runway_compatibility.go#L44>)
+
+```go
+func (rc *RunwayCompatibility) Validate(runwayIDs []string) error
+```
+
+Validate checks that the compatibility graph is valid. It verifies:
+
+1. Symmetry: If runway A is compatible with B, then B must be compatible with A
+2. No invalid references: All referenced runways must exist in the airport's runway list
+3. Self\-loops are ignored \(a runway is implicitly compatible with itself\)
+
+Returns a descriptive error if validation fails, nil otherwise.
+
 <a name="SurfaceType"></a>
-## type SurfaceType
+## type [SurfaceType](<https://github.com/harrydayexe/AirportCapacityCalculator/blob/main/internal/airport/runway.go#L6>)
 
 SurfaceType represents the type of surface of the runway.
 
