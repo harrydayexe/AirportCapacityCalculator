@@ -7,6 +7,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2025-01-13
+
+### Added
+
+**Wind-Based Runway Selection**
+- `WindPolicy` for modeling wind conditions affecting runway usability
+- Wind component calculations (headwind/crosswind decomposition)
+- Automatic runway direction selection (Forward/Reverse) based on wind
+- Runway filtering by crosswind and tailwind limits
+- `Runway.CrosswindLimitKnots` field for maximum crosswind component
+- `Runway.TailwindLimitKnots` field for maximum tailwind component
+- `World.WindSpeed` and `World.WindDirection` for tracking wind state
+- `RunwayManager.OnWindChanged()` for wind change notifications
+- `simulation.AddWindPolicy(speed, direction)` convenience method
+
+### Changed
+
+**Enhanced Runway Manager**
+- Modified `calculateActiveConfiguration()` to filter runways by wind constraints
+- Added wind-based direction determination (prefers maximum headwind)
+- RunwayManager now tracks wind state internally
+- Wind changes trigger automatic runway configuration recalculation
+
+**World State Management**
+- `World.SetWind()` now notifies RunwayManager of wind changes
+- Initial wind state defaults to calm (0kt, 0°)
+
+### Usage Example
+
+**Wind Policy:**
+```go
+// Add wind policy to simulation
+sim, err := simulation.NewSimulation(airport, logger).
+    AddWindPolicy(15, 270) // 15kt westerly wind
+if err != nil {
+    panic(err)
+}
+
+// Define runways with wind limits
+runway := airport.Runway{
+    RunwayDesignation:   "09L",
+    TrueBearing:         90.0,
+    CrosswindLimitKnots: 35.0, // Max crosswind
+    TailwindLimitKnots:  10.0, // Max tailwind
+    MinimumSeparation:   60 * time.Second,
+}
+```
+
+**How Wind Affects Operations:**
+- Runways exceeding crosswind limits are removed from operation
+- Runways exceeding tailwind limits operate in reverse direction (if possible)
+- Direction selection prefers maximum headwind component
+- Calm wind (0kt) allows all runways in forward direction
+
+**Example Scenarios:**
+```go
+// Westerly wind (270°) - Runways 09L/09R operate as 27R/27L (reverse)
+AddWindPolicy(15, 270)
+
+// Strong crosswind - May exclude some runways entirely
+AddWindPolicy(40, 360)
+
+// Calm conditions - All runways forward direction
+AddWindPolicy(0, 0)
+```
+
+### Technical Details
+
+**Wind Component Calculation:**
+```
+Given runway bearing and wind direction/speed:
+- Headwind = speed × cos(angle_difference)
+- Crosswind = speed × |sin(angle_difference)|
+- Positive headwind = favorable (headwind)
+- Negative headwind = unfavorable (tailwind)
+```
+
+**Runway Usability Logic:**
+1. Calculate wind components for both directions (forward & reverse)
+2. Check if either direction meets crosswind/tailwind limits
+3. If both directions unusable → exclude runway entirely
+4. If one direction usable → select that direction
+5. If both usable → prefer direction with maximum headwind
+
+## [0.3.1] - Unreleased
+
 ### Added
 
 **Runway Compatibility System**

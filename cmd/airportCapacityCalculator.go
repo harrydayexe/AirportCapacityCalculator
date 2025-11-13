@@ -20,28 +20,34 @@ func main() {
 		Country:  "Example Country",
 		Runways: []airport.Runway{
 			{
-				RunwayDesignation: "09L",
-				TrueBearing:       90.0,
-				LengthMeters:      3000.0,
-				WidthMeters:       45.0,
-				SurfaceType:       airport.Asphalt,
-				MinimumSeparation: 60 * time.Second,
+				RunwayDesignation:   "09L",
+				TrueBearing:         90.0,
+				LengthMeters:        3000.0,
+				WidthMeters:         45.0,
+				SurfaceType:         airport.Asphalt,
+				CrosswindLimitKnots: 35.0, // Typical for commercial aircraft
+				TailwindLimitKnots:  10.0, // Typical limit
+				MinimumSeparation:   60 * time.Second,
 			},
 			{
-				RunwayDesignation: "09R",
-				TrueBearing:       90.0,
-				LengthMeters:      3000.0,
-				WidthMeters:       45.0,
-				SurfaceType:       airport.Asphalt,
-				MinimumSeparation: 60 * time.Second,
+				RunwayDesignation:   "09R",
+				TrueBearing:         90.0,
+				LengthMeters:        3000.0,
+				WidthMeters:         45.0,
+				SurfaceType:         airport.Asphalt,
+				CrosswindLimitKnots: 35.0,
+				TailwindLimitKnots:  10.0,
+				MinimumSeparation:   60 * time.Second,
 			},
 			{
-				RunwayDesignation: "18",
-				TrueBearing:       180.0,
-				LengthMeters:      2500.0,
-				WidthMeters:       45.0,
-				SurfaceType:       airport.Asphalt,
-				MinimumSeparation: 60 * time.Second,
+				RunwayDesignation:   "18",
+				TrueBearing:         180.0,
+				LengthMeters:        2500.0,
+				WidthMeters:         45.0,
+				SurfaceType:         airport.Asphalt,
+				CrosswindLimitKnots: 35.0,
+				TailwindLimitKnots:  10.0,
+				MinimumSeparation:   60 * time.Second,
 			},
 		},
 	}
@@ -126,4 +132,74 @@ func main() {
 	logger.Info("TimeBasedRotation Reduction", "reduction", int(capacity1-capacity2))
 	logger.Info("PreferentialRunway Reduction", "reduction", int(capacity1-capacity3))
 	logger.Info("NoiseOptimizedRotation Reduction", "reduction", int(capacity1-capacity4))
+	logger.Info("")
+
+	// Wind Policy Demonstration
+	logger.Info("=== Wind Policy Demonstration ===")
+	logger.Info("Demonstrating how wind affects runway usability and direction selection")
+	logger.Info("")
+
+	// Scenario 5: Westerly wind (270°) - favors runways 27 (reverse of 09)
+	logger.Info("Scenario 5: Westerly wind (270° at 15kt)")
+	logger.Info("Expected: Runways 09L/09R will operate in reverse direction (as 27L/27R)")
+	sim5Temp, err := simulation.NewSimulation(exampleAirport, logger).
+		AddCurfewPolicy(curfewStart, curfewEnd)
+	if err != nil {
+		panic(err)
+	}
+	sim5, err := sim5Temp.AddWindPolicy(15, 270) // 15kt westerly wind
+	if err != nil {
+		panic(err)
+	}
+	capacity5, err := sim5.Run(context.Background())
+	if err != nil {
+		panic(err)
+	}
+	logger.Info("Result", "capacity", int(capacity5), "wind", "270° 15kt")
+	logger.Info("")
+
+	// Scenario 6: Strong northerly crosswind (360°) - may exclude runway 18
+	logger.Info("Scenario 6: Strong northerly crosswind (360° at 30kt)")
+	logger.Info("Expected: Runways may operate with significant crosswind component")
+	sim6Temp, err := simulation.NewSimulation(exampleAirport, logger).
+		AddCurfewPolicy(curfewStart, curfewEnd)
+	if err != nil {
+		panic(err)
+	}
+	sim6, err := sim6Temp.AddWindPolicy(30, 360) // 30kt northerly wind
+	if err != nil {
+		panic(err)
+	}
+	capacity6, err := sim6.Run(context.Background())
+	if err != nil {
+		panic(err)
+	}
+	logger.Info("Result", "capacity", int(capacity6), "wind", "360° 30kt")
+	logger.Info("")
+
+	// Scenario 7: Calm wind (baseline for comparison)
+	logger.Info("Scenario 7: Calm wind (no wind constraints)")
+	sim7Temp, err := simulation.NewSimulation(exampleAirport, logger).
+		AddCurfewPolicy(curfewStart, curfewEnd)
+	if err != nil {
+		panic(err)
+	}
+	sim7, err := sim7Temp.AddWindPolicy(0, 0) // Calm wind
+	if err != nil {
+		panic(err)
+	}
+	capacity7, err := sim7.Run(context.Background())
+	if err != nil {
+		panic(err)
+	}
+	logger.Info("Result", "capacity", int(capacity7), "wind", "calm")
+	logger.Info("")
+
+	logger.Info("=== Wind Impact Comparison ===")
+	logger.Info("Calm wind capacity", "capacity", int(capacity7))
+	logger.Info("Westerly wind (270° 15kt) capacity", "capacity", int(capacity5))
+	logger.Info("Northerly wind (360° 30kt) capacity", "capacity", int(capacity6))
+	logger.Info("")
+	logger.Info("Note: Wind changes runway direction but doesn't necessarily reduce capacity")
+	logger.Info("Capacity reduction occurs only if wind exceeds crosswind/tailwind limits")
 }

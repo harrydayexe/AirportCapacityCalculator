@@ -185,3 +185,15 @@ func (s *Simulation) RunwayRotationPolicy(strategy RotationStrategy) *Simulation
 	p := policy.NewDefaultRunwayRotationPolicy(strategy)
 	return s.AddPolicy(p)
 }
+
+// AddWindPolicy adds a wind policy that models wind conditions affecting runway usability.
+// Wind determines which runways can operate based on crosswind and tailwind limits.
+// Speed is in knots, direction is in degrees true (0-360).
+// Returns an error if the wind parameters are invalid.
+func (s *Simulation) AddWindPolicy(speedKnots, directionTrue float64) (*Simulation, error) {
+	p, err := policy.NewWindPolicy(speedKnots, directionTrue)
+	if err != nil {
+		return nil, err
+	}
+	return s.AddPolicy(p), nil
+}

@@ -5,6 +5,7 @@ import (
 
 	"github.com/harrydayexe/AirportCapacityCalculator/internal/airport"
 	"github.com/harrydayexe/AirportCapacityCalculator/internal/simulation/event"
+	"github.com/harrydayexe/AirportCapacityCalculator/internal/simulation/policy"
 )
 
 // RunwayManager is responsible for managing runway availability and determining
@@ -21,6 +22,12 @@ type RunwayManager struct {
 
 	// curfewActive indicates whether airport curfew is currently in effect
 	curfewActive bool
+
+	// windSpeed is the current wind speed in knots
+	windSpeed float64
+
+	// windDirection is the current wind direction in degrees true
+	windDirection float64
 
 	// allRunways contains the complete runway inventory for this airport
 	allRunways []airport.Runway
@@ -49,6 +56,8 @@ func NewRunwayManager(runways []airport.Runway, compatibility *airport.RunwayCom
 	rm := &RunwayManager{
 		availableRunways:       make(map[string]bool, len(runways)),
 		curfewActive:           false,
+		windSpeed:              0, // Default: calm wind
+		windDirection:          0, // Default: calm wind
 		allRunways:             make([]airport.Runway, len(runways)),
 		currentConfiguration:   make(map[string]*event.ActiveRunwayInfo),
 		compatibility:          compatibility,
@@ -101,6 +110,20 @@ func (rm *RunwayManager) OnCurfewChanged(active bool) {
 	defer rm.mu.Unlock()
 
 	rm.curfewActive = active
+	rm.calculateActiveConfiguration()
+}
+
+// OnWindChanged notifies the manager that wind conditions have changed.
+// This triggers recalculation of the active runway configuration to account for
+// crosswind and tailwind limits.
+//
+// Thread-safe: Uses write lock.
+func (rm *RunwayManager) OnWindChanged(speedKnots, directionTrue float64) {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
+	rm.windSpeed = speedKnots
+	rm.windDirection = directionTrue
 	rm.calculateActiveConfiguration()
 }
 
@@ -361,15 +384,168 @@ func removeElement(slice []string, element string) []string {
 	return slice
 }
 
+// filterRunwaysByWind filters the provided runway IDs to only include runways
+// that are usable under current wind conditions based on their crosswind and tailwind limits.
+//
+// For each runway, checks both forward and reverse directions to see if at least one
+// direction is usable. If neither direction is usable, the runway is excluded.
+//
+// Returns a slice of runway IDs that can operate in at least one direction.
+//
+// NOT thread-safe: Must be called while holding read or write lock.
+func (rm *RunwayManager) filterRunwaysByWind(runwayIDs []string) []string {
+	// If no wind (calm conditions), all runways are usable
+	if rm.windSpeed == 0 {
+		return runwayIDs
+	}
+
+	usable := make([]string, 0, len(runwayIDs))
+
+	for _, runwayID := range runwayIDs {
+		runway, found := rm.findRunwayByID(runwayID)
+		if !found {
+			continue
+		}
+
+		// Skip if runway has no limits set (0 means no limit, so always usable)
+		if runway.CrosswindLimitKnots == 0 && runway.TailwindLimitKnots == 0 {
+			usable = append(usable, runwayID)
+			continue
+		}
+
+		// Check if runway is usable in at least one direction
+		if rm.isRunwayUsableInEitherDirection(runway) {
+			usable = append(usable, runwayID)
+		}
+	}
+
+	return usable
+}
+
+// isRunwayUsableInEitherDirection checks if a runway can operate in at least one direction
+// (forward or reverse) given current wind conditions and runway limits.
+//
+// NOT thread-safe: Must be called while holding read or write lock.
+func (rm *RunwayManager) isRunwayUsableInEitherDirection(runway airport.Runway) bool {
+	// Check forward direction
+	headwind, crosswind := policy.CalculateWindComponents(
+		runway.TrueBearing,
+		rm.windSpeed,
+		rm.windDirection,
+	)
+
+	// Forward direction is usable if within limits
+	forwardUsable := true
+	if runway.CrosswindLimitKnots > 0 && crosswind > runway.CrosswindLimitKnots {
+		forwardUsable = false
+	}
+	if runway.TailwindLimitKnots > 0 && headwind < -runway.TailwindLimitKnots {
+		forwardUsable = false
+	}
+
+	if forwardUsable {
+		return true
+	}
+
+	// Check reverse direction (reciprocal bearing: +/- 180 degrees)
+	reverseBearing := runway.TrueBearing + 180
+	if reverseBearing >= 360 {
+		reverseBearing -= 360
+	}
+
+	headwindRev, crosswindRev := policy.CalculateWindComponents(
+		reverseBearing,
+		rm.windSpeed,
+		rm.windDirection,
+	)
+
+	// Reverse direction is usable if within limits
+	reverseUsable := true
+	if runway.CrosswindLimitKnots > 0 && crosswindRev > runway.CrosswindLimitKnots {
+		reverseUsable = false
+	}
+	if runway.TailwindLimitKnots > 0 && headwindRev < -runway.TailwindLimitKnots {
+		reverseUsable = false
+	}
+
+	return reverseUsable
+}
+
+// determineRunwayDirection determines the optimal direction (Forward or Reverse) for a runway
+// based on current wind conditions. Prefers the direction with maximum headwind component.
+//
+// Returns event.Forward or event.Reverse.
+//
+// NOT thread-safe: Must be called while holding read or write lock.
+func (rm *RunwayManager) determineRunwayDirection(runway airport.Runway) event.Direction {
+	// If no wind, use forward direction by default
+	if rm.windSpeed == 0 {
+		return event.Forward
+	}
+
+	// Calculate headwind for forward direction
+	headwindForward, crosswindForward := policy.CalculateWindComponents(
+		runway.TrueBearing,
+		rm.windSpeed,
+		rm.windDirection,
+	)
+
+	// Check if forward direction violates limits
+	forwardUsable := true
+	if runway.CrosswindLimitKnots > 0 && crosswindForward > runway.CrosswindLimitKnots {
+		forwardUsable = false
+	}
+	if runway.TailwindLimitKnots > 0 && headwindForward < -runway.TailwindLimitKnots {
+		forwardUsable = false
+	}
+
+	// Calculate headwind for reverse direction
+	reverseBearing := runway.TrueBearing + 180
+	if reverseBearing >= 360 {
+		reverseBearing -= 360
+	}
+
+	headwindReverse, crosswindReverse := policy.CalculateWindComponents(
+		reverseBearing,
+		rm.windSpeed,
+		rm.windDirection,
+	)
+
+	// Check if reverse direction violates limits
+	reverseUsable := true
+	if runway.CrosswindLimitKnots > 0 && crosswindReverse > runway.CrosswindLimitKnots {
+		reverseUsable = false
+	}
+	if runway.TailwindLimitKnots > 0 && headwindReverse < -runway.TailwindLimitKnots {
+		reverseUsable = false
+	}
+
+	// If only one direction is usable, use that
+	if forwardUsable && !reverseUsable {
+		return event.Forward
+	}
+	if reverseUsable && !forwardUsable {
+		return event.Reverse
+	}
+
+	// If both are usable (or both unusable - shouldn't happen if filterRunwaysByWind was called),
+	// prefer the direction with maximum headwind
+	if headwindForward >= headwindReverse {
+		return event.Forward
+	}
+	return event.Reverse
+}
+
 // calculateActiveConfiguration determines which runways should be active based on
-// current availability, curfew status, and runway compatibility constraints.
+// current availability, curfew status, wind constraints, and runway compatibility.
 // This method updates currentConfiguration.
 //
 // Algorithm:
 //  1. If curfew is active, no runways are active (return empty)
 //  2. Get all available runways
-//  3. Use compatibility graph to select maximum capacity configuration
-//  4. Build active configuration with operation type and direction
+//  3. Filter runways by wind constraints (crosswind/tailwind limits)
+//  4. Use compatibility graph to select maximum capacity configuration
+//  5. Build active configuration with operation type and direction (wind-based)
 //
 // NOT thread-safe: Must be called while holding write lock (mu.Lock).
 // This is a private method always called by lock-holding public methods.
@@ -382,11 +558,14 @@ func (rm *RunwayManager) calculateActiveConfiguration() {
 		return
 	}
 
-	// Get available runway IDs
+	// Get available runway IDs (not under maintenance)
 	availableIDs := rm.getAvailableRunwayIDs()
 
+	// Filter by wind constraints (remove runways unusable in current wind)
+	windUsableIDs := rm.filterRunwaysByWind(availableIDs)
+
 	// Select the optimal compatible configuration (maximum capacity)
-	optimalConfig := rm.selectMaxCapacityConfig(availableIDs)
+	optimalConfig := rm.selectMaxCapacityConfig(windUsableIDs)
 
 	// Build active configuration for the selected runways
 	for _, runwayID := range optimalConfig {
@@ -398,13 +577,13 @@ func (rm *RunwayManager) calculateActiveConfiguration() {
 		// TODO: Determine operation type based on traffic patterns
 		// For now, all runways handle mixed operations
 
-		// TODO: Determine direction based on wind
-		// For now, all runways use forward direction
+		// Determine optimal direction based on wind (prefer maximum headwind)
+		direction := rm.determineRunwayDirection(runway)
 
 		rm.currentConfiguration[runwayID] = &event.ActiveRunwayInfo{
 			RunwayDesignation: runwayID,
-			OperationType:     event.Mixed,   // Default: handle both takeoffs and landings
-			Direction:         event.Forward, // Default: primary direction
+			OperationType:     event.Mixed, // Default: handle both takeoffs and landings
+			Direction:         direction,   // Wind-based direction selection
 			Runway:            runway,
 		}
 	}
