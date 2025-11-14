@@ -31,6 +31,8 @@ type World struct {
 	// Operational state
 	RunwayStates map[string]*RunwayState // Per-runway availability and configuration (legacy, for historical tracking)
 	CurfewActive bool                    // Whether airport curfew is currently in effect
+	WindSpeed    float64                 // Current wind speed in knots
+	WindDirection float64                // Current wind direction in degrees true (0 = no wind)
 
 	// Runway management (single source of truth for active runways)
 	RunwayManager            *RunwayManager                          // Manages runway availability and active configuration
@@ -62,6 +64,7 @@ type RunwayState struct {
 //   - RotationMultiplier is 1.0 (no efficiency penalty)
 //   - GateCapacityConstraint is 0 (no gate limitation)
 //   - TaxiTimeOverhead is 0 (no taxi time impact)
+//   - WindSpeed is 0, WindDirection is 0 (calm conditions)
 //   - Empty event queue
 //
 // Policies will later modify these defaults by generating events that change the world state.
@@ -74,6 +77,8 @@ func NewWorld(airport airport.Airport, startTime, endTime time.Time) *World {
 		Events:             event.NewEventQueue(),
 		RunwayStates:       make(map[string]*RunwayState),
 		CurfewActive:       false,
+		WindSpeed:          0, // Default: calm conditions
+		WindDirection:      0, // Default: calm conditions
 		RotationMultiplier: 1.0, // Default: no rotation penalty
 		TotalCapacity:      0,
 	}
@@ -185,6 +190,36 @@ func (w *World) SetTaxiTimeOverhead(overhead time.Duration) error {
 // A value of 0 means no taxi time overhead is applied.
 func (w *World) GetTaxiTimeOverhead() time.Duration {
 	return w.TaxiTimeOverhead
+}
+
+// SetWind sets the current wind conditions (speed in knots, direction in degrees true).
+// Called by WindPolicy during initialization or by WindChangeEvent if wind varies over time.
+// Wind direction of 0 with speed 0 indicates no wind (calm conditions).
+// Notifies the RunwayManager to recalculate active runway configuration based on new wind.
+// Returns an error if wind speed is negative.
+func (w *World) SetWind(speed, direction float64) error {
+	if speed < 0 {
+		return fmt.Errorf("wind speed cannot be negative: %f", speed)
+	}
+	w.WindSpeed = speed
+	w.WindDirection = direction
+
+	// Notify RunwayManager of wind change (triggers runway configuration recalculation)
+	if w.RunwayManager != nil {
+		w.RunwayManager.OnWindChanged(speed, direction)
+	}
+
+	return nil
+}
+
+// GetWindSpeed returns the current wind speed in knots.
+func (w *World) GetWindSpeed() float64 {
+	return w.WindSpeed
+}
+
+// GetWindDirection returns the current wind direction in degrees true.
+func (w *World) GetWindDirection() float64 {
+	return w.WindDirection
 }
 
 // GetAvailableRunways returns a slice of currently available runways.
