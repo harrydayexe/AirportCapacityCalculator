@@ -7,6 +7,179 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2025-01-14
+
+### Added
+
+**Dynamic Wind System**
+- `ScheduledWindPolicy` for time-varying wind conditions
+- `WindChangeEvent` for modeling wind changes at specific times
+- `policy.WindChange` struct for defining wind schedule entries
+- `simulation.AddScheduledWindPolicy(schedule)` convenience method
+- Automatic event generation within simulation time period
+- Chronological validation of wind schedules
+
+**Wind Pattern Helpers**
+- `policy.DiurnalWindPattern()` for daily wind cycles (morning calm → afternoon build → evening decrease)
+- `policy.ConstantWindPattern()` for simple constant wind conditions
+- `policy.FrontalPassagePattern()` for abrupt wind shifts (weather fronts)
+- `policy.LinearWindTransition()` for smooth wind transitions over time
+- `policy.SeasonalWindPattern()` for seasonal wind variations
+- `policy.CombineWindSchedules()` for merging multiple wind patterns
+- `policy.SortSchedule()` utility for chronological sorting
+
+**Event System Enhancements**
+- `WindChangeType` event type added to event system
+- `WorldState.SetWind()` interface method for wind state changes
+- `WorldState.GetWindSpeed()` and `GetWindDirection()` accessors
+
+### Changed
+
+**Wind Policy Architecture**
+- Wind changes now trigger `World.SetWind()` which automatically notifies `RunwayManager`
+- RunwayManager recalculates active configuration on wind changes
+- Event-driven wind updates maintain architectural consistency
+
+### Usage Examples
+
+**Scheduled Wind Policy:**
+```go
+// Create a wind schedule
+schedule := []simulation.WindChange{
+    {time.Date(2024, 1, 1, 6, 0, 0, 0, time.UTC), 5, 90},   // Morning: 5kt easterly
+    {time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC), 20, 270}, // Afternoon: 20kt westerly
+    {time.Date(2024, 1, 1, 21, 0, 0, 0, time.UTC), 10, 270}, // Evening: 10kt westerly
+}
+
+sim, err := simulation.NewSimulation(airport, logger).
+    AddScheduledWindPolicy(schedule)
+```
+
+**Diurnal Wind Pattern:**
+```go
+import "github.com/harrydayexe/AirportCapacityCalculator/internal/simulation/policy"
+
+// 7-day diurnal pattern: morning calm → afternoon peak → evening decrease
+schedule := policy.DiurnalWindPattern(
+    time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+    7,    // 7 days
+    5.0,  // morning: 5kt
+    20.0, // afternoon peak: 20kt
+    10.0, // evening: 10kt
+    270,  // westerly direction
+)
+
+sim, err := simulation.NewSimulation(airport, logger).
+    AddScheduledWindPolicy(schedule)
+```
+
+**Frontal Passage:**
+```go
+// Model a cold front passage with abrupt wind shift
+frontPassage := policy.FrontalPassagePattern(
+    time.Date(2024, 3, 15, 18, 0, 0, 0, time.UTC),
+    10,  // pre-frontal: 10kt southerly
+    180,
+    25,  // post-frontal: 25kt westerly
+    270,
+)
+
+sim, err := simulation.NewSimulation(airport, logger).
+    AddScheduledWindPolicy(frontPassage)
+```
+
+**Seasonal Wind Variation:**
+```go
+// Model seasonal prevailing winds
+seasonal := policy.SeasonalWindPattern(
+    2024,
+    time.UTC,
+    15, 10, 5, 12,      // speeds: winter, spring, summer, fall (knots)
+    270, 180, 90, 225,  // directions: W, S, E, SW (degrees true)
+)
+
+sim, err := simulation.NewSimulation(airport, logger).
+    AddScheduledWindPolicy(seasonal)
+```
+
+**Linear Wind Transition:**
+```go
+// Gradual wind change over 4 hours
+transition, err := policy.LinearWindTransition(
+    time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC),
+    4*time.Hour, // duration
+    5,           // steps for smoothness
+    10, 90,      // initial: 10kt from east
+    30, 180,     // final: 30kt from south
+)
+
+sim, err := simulation.NewSimulation(airport, logger).
+    AddScheduledWindPolicy(transition)
+```
+
+**Combining Wind Patterns:**
+```go
+// Combine seasonal and diurnal patterns
+seasonal := policy.SeasonalWindPattern(2024, time.UTC, 15, 10, 5, 12, 270, 180, 90, 225)
+diurnal := policy.DiurnalWindPattern(startDate, 365, 5, 20, 10, 270)
+combined := policy.CombineWindSchedules(seasonal, diurnal)
+
+sim, err := simulation.NewSimulation(airport, logger).
+    AddScheduledWindPolicy(combined)
+```
+
+### Technical Details
+
+**Wind Schedule Validation:**
+- Schedule cannot be empty
+- Wind speeds must be non-negative
+- Wind directions are automatically normalized to 0-360° range
+- Schedule entries must be in chronological order
+- Duplicate timestamps: last entry wins
+
+**Event Generation:**
+- Only events within simulation period (startTime to endTime) are generated
+- Events outside the period are silently skipped
+- WindChangeEvents are processed in chronological order
+- Each wind change triggers automatic runway configuration recalculation
+
+**Direction Normalization:**
+- Handles negative angles: -90° → 270°
+- Handles angles >360°: 450° → 90°
+- Ensures all directions are in 0-360° range
+
+**Wind Pattern Helpers:**
+- `DiurnalWindPattern`: 4 changes per day (midnight, 06:00, 15:00, 21:00)
+- `LinearWindTransition`: Takes shortest angular path for direction changes
+  - Example: 350° → 10° goes through 360°, not backwards through 180°
+- `SeasonalWindPattern`: Changes at equinoxes/solstices (Mar 20, Jun 21, Sep 22, Jan 1)
+- `CombineWindSchedules`: Merges and sorts multiple schedules chronologically
+
+### Migration from Static Wind
+
+**Before (v0.4.0 - Static Wind):**
+```go
+sim, err := simulation.NewSimulation(airport, logger).
+    AddWindPolicy(15, 270) // Constant 15kt westerly
+```
+
+**After (v0.5.0 - Dynamic Wind):**
+```go
+// For constant wind throughout simulation
+schedule := policy.ConstantWindPattern(
+    time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+    15, 270,
+)
+sim, err := simulation.NewSimulation(airport, logger).
+    AddScheduledWindPolicy(schedule)
+
+// Or use static WindPolicy (still supported)
+sim, err := simulation.NewSimulation(airport, logger).
+    AddWindPolicy(15, 270)
+```
+
+**Note:** Static `WindPolicy` from v0.4.0 remains fully supported for backward compatibility.
+
 ## [0.4.0] - 2025-01-13
 
 ### Added

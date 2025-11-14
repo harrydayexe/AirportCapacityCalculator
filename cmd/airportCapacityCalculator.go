@@ -8,6 +8,7 @@ import (
 
 	"github.com/harrydayexe/AirportCapacityCalculator/internal/airport"
 	"github.com/harrydayexe/AirportCapacityCalculator/internal/simulation"
+	"github.com/harrydayexe/AirportCapacityCalculator/internal/simulation/policy"
 )
 
 func main() {
@@ -297,6 +298,153 @@ func main() {
 		panic(err)
 	}
 	logger.Info("  → Capacity", "movements", int(capacity4b), "improvement", int(capacity4b-capacity4a))
+	logger.Info("")
+
+	// Scenario 5: Dynamic Wind Patterns
+	logger.Info("═══════════════════════════════════════════════════════════════")
+	logger.Info("Scenario 5: DYNAMIC WIND PATTERNS")
+	logger.Info("═══════════════════════════════════════════════════════════════")
+	logger.Info("Demonstrating time-varying wind conditions using ScheduledWindPolicy")
+	logger.Info("")
+
+	// Sub-scenario 5a: Diurnal wind pattern (daily cycle)
+	logger.Info("5a. Diurnal Wind Pattern (7-day cycle):")
+	logger.Info("    Morning calm → Afternoon westerly builds → Evening decrease")
+	logger.Info("    06:00: 5kt | 15:00: 20kt | 21:00: 10kt | 00:00: calm")
+
+	diurnalSchedule := policy.DiurnalWindPattern(
+		time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		7,    // 7 days
+		5.0,  // morning: 5kt
+		20.0, // afternoon peak: 20kt
+		10.0, // evening: 10kt
+		270,  // westerly direction
+	)
+
+	sim5aTemp, err := simulation.NewSimulation(majorAirport, logger).
+		AddCurfewPolicy(curfewStart, curfewEnd)
+	if err != nil {
+		panic(err)
+	}
+
+	sim5aTemp, err = sim5aTemp.AddScheduledWindPolicy(diurnalSchedule)
+	if err != nil {
+		panic(err)
+	}
+
+	capacity5a, err := sim5aTemp.Run(context.Background())
+	if err != nil {
+		panic(err)
+	}
+
+	logger.Info("  → Capacity", "movements", int(capacity5a), "daily_avg", int(capacity5a)/365)
+	logger.Info("")
+
+	// Sub-scenario 5b: Frontal passage (abrupt wind shift)
+	logger.Info("5b. Frontal Passage (cold front):")
+	logger.Info("    Pre-frontal: Southerly 10kt → Post-frontal: Westerly 25kt")
+
+	frontPassageTime := time.Date(2024, 3, 15, 18, 0, 0, 0, time.UTC)
+	frontalSchedule := policy.FrontalPassagePattern(
+		frontPassageTime,
+		10,  // pre-frontal speed (kt)
+		180, // pre-frontal direction (south)
+		25,  // post-frontal speed (kt)
+		270, // post-frontal direction (west)
+	)
+
+	sim5bTemp, err := simulation.NewSimulation(majorAirport, logger).
+		AddCurfewPolicy(curfewStart, curfewEnd)
+	if err != nil {
+		panic(err)
+	}
+
+	sim5bTemp, err = sim5bTemp.AddScheduledWindPolicy(frontalSchedule)
+	if err != nil {
+		panic(err)
+	}
+
+	capacity5b, err := sim5bTemp.Run(context.Background())
+	if err != nil {
+		panic(err)
+	}
+
+	logger.Info("  → Capacity", "movements", int(capacity5b), "daily_avg", int(capacity5b)/365)
+	logger.Info("")
+
+	// Sub-scenario 5c: Seasonal wind variation
+	logger.Info("5c. Seasonal Wind Pattern:")
+	logger.Info("    Winter: 15kt/270° | Spring: 10kt/180° | Summer: 5kt/90° | Fall: 12kt/225°")
+
+	seasonalSchedule := policy.SeasonalWindPattern(
+		2024,
+		time.UTC,
+		15, 10, 5, 12,   // speeds (winter, spring, summer, fall)
+		270, 180, 90, 225, // directions
+	)
+
+	sim5cTemp, err := simulation.NewSimulation(majorAirport, logger).
+		AddCurfewPolicy(curfewStart, curfewEnd)
+	if err != nil {
+		panic(err)
+	}
+
+	sim5cTemp, err = sim5cTemp.AddScheduledWindPolicy(seasonalSchedule)
+	if err != nil {
+		panic(err)
+	}
+
+	capacity5c, err := sim5cTemp.Run(context.Background())
+	if err != nil {
+		panic(err)
+	}
+
+	logger.Info("  → Capacity", "movements", int(capacity5c), "daily_avg", int(capacity5c)/365)
+	logger.Info("")
+
+	// Sub-scenario 5d: Linear wind transition
+	logger.Info("5d. Linear Wind Transition (gradual change):")
+	logger.Info("    10kt/90° → 30kt/180° over 4 hours (5 steps)")
+
+	transitionStart := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	transitionSchedule, err := policy.LinearWindTransition(
+		transitionStart,
+		4*time.Hour, // duration
+		5,           // steps
+		10, 90,      // initial: 10kt from east
+		30, 180,     // final: 30kt from south
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	sim5dTemp, err := simulation.NewSimulation(majorAirport, logger).
+		AddCurfewPolicy(curfewStart, curfewEnd)
+	if err != nil {
+		panic(err)
+	}
+
+	sim5dTemp, err = sim5dTemp.AddScheduledWindPolicy(transitionSchedule)
+	if err != nil {
+		panic(err)
+	}
+
+	capacity5d, err := sim5dTemp.Run(context.Background())
+	if err != nil {
+		panic(err)
+	}
+
+	logger.Info("  → Capacity", "movements", int(capacity5d), "daily_avg", int(capacity5d)/365)
+	logger.Info("")
+
+	logger.Info("Comparison:")
+	logger.Info("  Static Westerly 15kt", "movements", int(windResults[1]))
+	logger.Info("  Diurnal Pattern (avg 15kt)", "movements", int(capacity5a))
+	diffPercent := int((float32(windResults[1])-capacity5a)/float32(windResults[1])*100)
+	if capacity5a > windResults[1] {
+		diffPercent = int((capacity5a-float32(windResults[1]))/capacity5a*100)
+	}
+	logger.Info("  Difference", "percent", diffPercent)
 	logger.Info("")
 
 	// Summary

@@ -46,6 +46,9 @@ const (
 
 	// ActiveRunwayConfigurationChangedType indicates the active runway configuration has changed
 	ActiveRunwayConfigurationChangedType
+
+	// WindChangeType indicates wind conditions have changed
+	WindChangeType
 )
 
 // String returns the string representation of the event type
@@ -67,6 +70,8 @@ func (et EventType) String() string {
 		return "TaxiTimeAdjustment"
 	case ActiveRunwayConfigurationChangedType:
 		return "ActiveRunwayConfigurationChanged"
+	case WindChangeType:
+		return "WindChange"
 	default:
 		return "Unknown"
 	}
@@ -118,4 +123,14 @@ type WorldState interface {
 	// NotifyCurfewChange notifies the runway manager of curfew changes
 	// and schedules an ActiveRunwayConfigurationChangedEvent
 	NotifyCurfewChange(active bool, timestamp time.Time) error
+
+	// SetWind sets the current wind conditions (speed in knots, direction in degrees true)
+	// and notifies the runway manager to recalculate active runway configuration
+	SetWind(speed, direction float64) error
+
+	// GetWindSpeed returns the current wind speed in knots
+	GetWindSpeed() float64
+
+	// GetWindDirection returns the current wind direction in degrees true
+	GetWindDirection() float64
 }

@@ -30,6 +30,7 @@ type (
 	TaxiTimeConfiguration          = policy.TaxiTimeConfiguration
 	RotationStrategy              = policy.RotationStrategy
 	RotationSchedule              = policy.RotationSchedule
+	WindChange                    = policy.WindChange
 )
 
 // Rotation strategy constants
@@ -192,6 +193,19 @@ func (s *Simulation) RunwayRotationPolicy(strategy RotationStrategy) *Simulation
 // Returns an error if the wind parameters are invalid.
 func (s *Simulation) AddWindPolicy(speedKnots, directionTrue float64) (*Simulation, error) {
 	p, err := policy.NewWindPolicy(speedKnots, directionTrue)
+	if err != nil {
+		return nil, err
+	}
+	return s.AddPolicy(p), nil
+}
+
+// AddScheduledWindPolicy adds a scheduled wind policy that models time-varying wind conditions.
+// This policy generates WindChangeEvents at specified times to model realistic wind patterns
+// such as diurnal cycles, frontal passages, or seasonal variations.
+// The schedule must be in chronological order with valid wind parameters.
+// Returns an error if the schedule validation fails.
+func (s *Simulation) AddScheduledWindPolicy(windSchedule []WindChange) (*Simulation, error) {
+	p, err := policy.NewScheduledWindPolicy(windSchedule)
 	if err != nil {
 		return nil, err
 	}
