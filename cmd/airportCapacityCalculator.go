@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"time"
@@ -12,6 +14,17 @@ import (
 )
 
 func main() {
+	// Parse command-line flags
+	verbose := flag.Bool("verbose", false, "Enable verbose logging (info level and above)")
+	flag.Parse()
+
+	// Configure logger based on verbose flag
+	logLevel := slog.LevelError
+	if *verbose {
+		logLevel = slog.LevelInfo
+	}
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel}))
+
 	// Create a realistic major international airport configuration
 	// Inspired by airports like LAX, with parallel runways and a crossing runway
 	majorAirport := airport.Airport{
@@ -84,36 +97,34 @@ func main() {
 		}),
 	}
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
-
-	logger.Info("╔═══════════════════════════════════════════════════════════════╗")
-	logger.Info("║   Airport Capacity Calculator - Comprehensive Demonstration   ║")
-	logger.Info("╚═══════════════════════════════════════════════════════════════╝")
-	logger.Info("")
-	logger.Info("Airport: Metropolitan International Airport (KMIA)")
-	logger.Info("Runway Configuration:")
-	logger.Info("  • 09L/27R: 3,685m (12,090ft) - Heavy aircraft, 75s separation")
-	logger.Info("  • 09R/27L: 3,380m (11,090ft) - Standard aircraft, 60s separation")
-	logger.Info("  • 18/36:   2,743m (9,000ft)  - Regional/domestic, 50s separation (crossing)")
-	logger.Info("  • 08/26:   2,438m (8,000ft)  - Regional/GA, 45s separation")
-	logger.Info("")
+	fmt.Println("╔═══════════════════════════════════════════════════════════════╗")
+	fmt.Println("║   Airport Capacity Calculator - Comprehensive Demonstration   ║")
+	fmt.Println("╚═══════════════════════════════════════════════════════════════╝")
+	fmt.Println()
+	fmt.Println("Airport: Metropolitan International Airport (KMIA)")
+	fmt.Println("Runway Configuration:")
+	fmt.Println("  • 09L/27R: 3,685m (12,090ft) - Heavy aircraft, 75s separation")
+	fmt.Println("  • 09R/27L: 3,380m (11,090ft) - Standard aircraft, 60s separation")
+	fmt.Println("  • 18/36:   2,743m (9,000ft)  - Regional/domestic, 50s separation (crossing)")
+	fmt.Println("  • 08/26:   2,438m (8,000ft)  - Regional/GA, 45s separation")
+	fmt.Println()
 
 	// Define operational constraints
 	curfewStart := time.Date(2024, 1, 1, 23, 0, 0, 0, time.UTC)
 	curfewEnd := time.Date(2024, 1, 2, 6, 0, 0, 0, time.UTC)
 
 	// Scenario 1: Full Configuration - All Policies Applied
-	logger.Info("═══════════════════════════════════════════════════════════════")
-	logger.Info("Scenario 1: REALISTIC OPERATIONS - All Constraints Applied")
-	logger.Info("═══════════════════════════════════════════════════════════════")
-	logger.Info("Constraints:")
-	logger.Info("  • Curfew: 11 PM - 6 AM daily (7 hours)")
-	logger.Info("  • Wind: Westerly 15kt (270°) - favoring 27 operations")
-	logger.Info("  • Rotation: Preferential runway (noise abatement)")
-	logger.Info("  • Maintenance: 09R - Monthly 8hr maintenance windows")
-	logger.Info("  • Gates: 50 gates, 45min turnaround")
-	logger.Info("  • Taxi: 8min average (5min in, 3min out)")
-	logger.Info("")
+	fmt.Println("═══════════════════════════════════════════════════════════════")
+	fmt.Println("Scenario 1: REALISTIC OPERATIONS - All Constraints Applied")
+	fmt.Println("═══════════════════════════════════════════════════════════════")
+	fmt.Println("Constraints:")
+	fmt.Println("  • Curfew: 11 PM - 6 AM daily (7 hours)")
+	fmt.Println("  • Wind: Westerly 15kt (270°) - favoring 27 operations")
+	fmt.Println("  • Rotation: Preferential runway (noise abatement)")
+	fmt.Println("  • Maintenance: 09R - Monthly 8hr maintenance windows")
+	fmt.Println("  • Gates: 50 gates, 45min turnaround")
+	fmt.Println("  • Taxi: 8min average (5min in, 3min out)")
+	fmt.Println()
 
 	sim1Temp, err := simulation.NewSimulation(majorAirport, logger).
 		AddCurfewPolicy(curfewStart, curfewEnd)
@@ -158,24 +169,24 @@ func main() {
 		panic(err)
 	}
 
-	logger.Info("───────────────────────────────────────────────────────────────")
-	logger.Info("RESULT: Annual Capacity", "movements", int(capacity1))
-	logger.Info("        Daily Average", "movements", int(capacity1)/365)
-	logger.Info("        Peak Hour Estimate", "movements", int(capacity1)/365/17) // 17 operating hours
-	logger.Info("")
+	fmt.Println("───────────────────────────────────────────────────────────────")
+	fmt.Printf("RESULT: Annual Capacity: %d movements\n", int(capacity1))
+	fmt.Printf("        Daily Average: %d movements\n", int(capacity1)/365)
+	fmt.Printf("        Peak Hour Estimate: %d movements\n", int(capacity1)/365/17) // 17 operating hours
+	fmt.Println()
 
 	// Scenario 2: Theoretical Maximum (No Constraints)
-	logger.Info("═══════════════════════════════════════════════════════════════")
-	logger.Info("Scenario 2: THEORETICAL MAXIMUM - No Constraints")
-	logger.Info("═══════════════════════════════════════════════════════════════")
-	logger.Info("Configuration:")
-	logger.Info("  • No curfew (24/7 operations)")
-	logger.Info("  • Calm wind (all runways forward direction)")
-	logger.Info("  • No rotation penalty")
-	logger.Info("  • No maintenance")
-	logger.Info("  • No gate constraints")
-	logger.Info("  • No taxi time overhead")
-	logger.Info("")
+	fmt.Println("═══════════════════════════════════════════════════════════════")
+	fmt.Println("Scenario 2: THEORETICAL MAXIMUM - No Constraints")
+	fmt.Println("═══════════════════════════════════════════════════════════════")
+	fmt.Println("Configuration:")
+	fmt.Println("  • No curfew (24/7 operations)")
+	fmt.Println("  • Calm wind (all runways forward direction)")
+	fmt.Println("  • No rotation penalty")
+	fmt.Println("  • No maintenance")
+	fmt.Println("  • No gate constraints")
+	fmt.Println("  • No taxi time overhead")
+	fmt.Println()
 
 	sim2Temp, err := simulation.NewSimulation(majorAirport, logger).
 		AddWindPolicy(0, 0) // Calm wind
@@ -190,16 +201,16 @@ func main() {
 		panic(err)
 	}
 
-	logger.Info("───────────────────────────────────────────────────────────────")
-	logger.Info("RESULT: Annual Capacity", "movements", int(capacity2))
-	logger.Info("        Daily Average", "movements", int(capacity2)/365)
-	logger.Info("        Peak Hour Estimate", "movements", int(capacity2)/365/24)
-	logger.Info("")
+	fmt.Println("───────────────────────────────────────────────────────────────")
+	fmt.Printf("RESULT: Annual Capacity: %d movements\n", int(capacity2))
+	fmt.Printf("        Daily Average: %d movements\n", int(capacity2)/365)
+	fmt.Printf("        Peak Hour Estimate: %d movements\n", int(capacity2)/365/24)
+	fmt.Println()
 
 	// Scenario 3: Wind Impact Analysis
-	logger.Info("═══════════════════════════════════════════════════════════════")
-	logger.Info("Scenario 3: WIND IMPACT ANALYSIS")
-	logger.Info("═══════════════════════════════════════════════════════════════")
+	fmt.Println("═══════════════════════════════════════════════════════════════")
+	fmt.Println("Scenario 3: WIND IMPACT ANALYSIS")
+	fmt.Println("═══════════════════════════════════════════════════════════════")
 
 	windScenarios := []struct {
 		name      string
@@ -217,7 +228,7 @@ func main() {
 	windResults := make([]float32, len(windScenarios))
 
 	for i, scenario := range windScenarios {
-		logger.Info(scenario.name+" Wind", "speed", scenario.speed, "direction", scenario.direction, "desc", scenario.desc)
+		fmt.Printf("%s Wind: %.0fkt @ %.0f° - %s\n", scenario.name, scenario.speed, scenario.direction, scenario.desc)
 
 		simTemp, err := simulation.NewSimulation(majorAirport, logger).
 			AddCurfewPolicy(curfewStart, curfewEnd)
@@ -236,17 +247,17 @@ func main() {
 		}
 
 		windResults[i] = capacity
-		logger.Info("  → Capacity", "movements", int(capacity), "daily_avg", int(capacity)/365)
+		fmt.Printf("  → Capacity: %d movements (daily avg: %d)\n", int(capacity), int(capacity)/365)
 	}
-	logger.Info("")
+	fmt.Println()
 
 	// Scenario 4: Maintenance Impact
-	logger.Info("═══════════════════════════════════════════════════════════════")
-	logger.Info("Scenario 4: MAINTENANCE SCHEDULING COMPARISON")
-	logger.Info("═══════════════════════════════════════════════════════════════")
+	fmt.Println("═══════════════════════════════════════════════════════════════")
+	fmt.Println("Scenario 4: MAINTENANCE SCHEDULING COMPARISON")
+	fmt.Println("═══════════════════════════════════════════════════════════════")
 
 	// Simple maintenance
-	logger.Info("Simple Maintenance (no coordination):")
+	fmt.Println("Simple Maintenance (no coordination):")
 	sim4aTemp, err := simulation.NewSimulation(majorAirport, logger).
 		AddCurfewPolicy(curfewStart, curfewEnd)
 	if err != nil {
@@ -268,10 +279,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	logger.Info("  → Capacity", "movements", int(capacity4a))
+	fmt.Printf("  → Capacity: %d movements\n", int(capacity4a))
 
 	// Intelligent maintenance
-	logger.Info("Intelligent Maintenance (curfew-aware):")
+	fmt.Println("Intelligent Maintenance (curfew-aware):")
 	sim4bTemp, err := simulation.NewSimulation(majorAirport, logger).
 		AddCurfewPolicy(curfewStart, curfewEnd)
 	if err != nil {
@@ -297,20 +308,20 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	logger.Info("  → Capacity", "movements", int(capacity4b), "improvement", int(capacity4b-capacity4a))
-	logger.Info("")
+	fmt.Printf("  → Capacity: %d movements (improvement: %d)\n", int(capacity4b), int(capacity4b-capacity4a))
+	fmt.Println()
 
 	// Scenario 5: Dynamic Wind Patterns
-	logger.Info("═══════════════════════════════════════════════════════════════")
-	logger.Info("Scenario 5: DYNAMIC WIND PATTERNS")
-	logger.Info("═══════════════════════════════════════════════════════════════")
-	logger.Info("Demonstrating time-varying wind conditions using ScheduledWindPolicy")
-	logger.Info("")
+	fmt.Println("═══════════════════════════════════════════════════════════════")
+	fmt.Println("Scenario 5: DYNAMIC WIND PATTERNS")
+	fmt.Println("═══════════════════════════════════════════════════════════════")
+	fmt.Println("Demonstrating time-varying wind conditions using ScheduledWindPolicy")
+	fmt.Println()
 
 	// Sub-scenario 5a: Diurnal wind pattern (daily cycle)
-	logger.Info("5a. Diurnal Wind Pattern (7-day cycle):")
-	logger.Info("    Morning calm → Afternoon westerly builds → Evening decrease")
-	logger.Info("    06:00: 5kt | 15:00: 20kt | 21:00: 10kt | 00:00: calm")
+	fmt.Println("5a. Diurnal Wind Pattern (7-day cycle):")
+	fmt.Println("    Morning calm → Afternoon westerly builds → Evening decrease")
+	fmt.Println("    06:00: 5kt | 15:00: 20kt | 21:00: 10kt | 00:00: calm")
 
 	diurnalSchedule := policy.DiurnalWindPattern(
 		time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -337,12 +348,12 @@ func main() {
 		panic(err)
 	}
 
-	logger.Info("  → Capacity", "movements", int(capacity5a), "daily_avg", int(capacity5a)/365)
-	logger.Info("")
+	fmt.Printf("  → Capacity: %d movements (daily avg: %d)\n", int(capacity5a), int(capacity5a)/365)
+	fmt.Println()
 
 	// Sub-scenario 5b: Frontal passage (abrupt wind shift)
-	logger.Info("5b. Frontal Passage (cold front):")
-	logger.Info("    Pre-frontal: Southerly 10kt → Post-frontal: Westerly 25kt")
+	fmt.Println("5b. Frontal Passage (cold front):")
+	fmt.Println("    Pre-frontal: Southerly 10kt → Post-frontal: Westerly 25kt")
 
 	frontPassageTime := time.Date(2024, 3, 15, 18, 0, 0, 0, time.UTC)
 	frontalSchedule := policy.FrontalPassagePattern(
@@ -369,12 +380,12 @@ func main() {
 		panic(err)
 	}
 
-	logger.Info("  → Capacity", "movements", int(capacity5b), "daily_avg", int(capacity5b)/365)
-	logger.Info("")
+	fmt.Printf("  → Capacity: %d movements (daily avg: %d)\n", int(capacity5b), int(capacity5b)/365)
+	fmt.Println()
 
 	// Sub-scenario 5c: Seasonal wind variation
-	logger.Info("5c. Seasonal Wind Pattern:")
-	logger.Info("    Winter: 15kt/270° | Spring: 10kt/180° | Summer: 5kt/90° | Fall: 12kt/225°")
+	fmt.Println("5c. Seasonal Wind Pattern:")
+	fmt.Println("    Winter: 15kt/270° | Spring: 10kt/180° | Summer: 5kt/90° | Fall: 12kt/225°")
 
 	seasonalSchedule := policy.SeasonalWindPattern(
 		2024,
@@ -399,12 +410,12 @@ func main() {
 		panic(err)
 	}
 
-	logger.Info("  → Capacity", "movements", int(capacity5c), "daily_avg", int(capacity5c)/365)
-	logger.Info("")
+	fmt.Printf("  → Capacity: %d movements (daily avg: %d)\n", int(capacity5c), int(capacity5c)/365)
+	fmt.Println()
 
 	// Sub-scenario 5d: Linear wind transition
-	logger.Info("5d. Linear Wind Transition (gradual change):")
-	logger.Info("    10kt/90° → 30kt/180° over 4 hours (5 steps)")
+	fmt.Println("5d. Linear Wind Transition (gradual change):")
+	fmt.Println("    10kt/90° → 30kt/180° over 4 hours (5 steps)")
 
 	transitionStart := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 	transitionSchedule, err := policy.LinearWindTransition(
@@ -434,37 +445,37 @@ func main() {
 		panic(err)
 	}
 
-	logger.Info("  → Capacity", "movements", int(capacity5d), "daily_avg", int(capacity5d)/365)
-	logger.Info("")
+	fmt.Printf("  → Capacity: %d movements (daily avg: %d)\n", int(capacity5d), int(capacity5d)/365)
+	fmt.Println()
 
-	logger.Info("Comparison:")
-	logger.Info("  Static Westerly 15kt", "movements", int(windResults[1]))
-	logger.Info("  Diurnal Pattern (avg 15kt)", "movements", int(capacity5a))
+	fmt.Println("Comparison:")
+	fmt.Printf("  Static Westerly 15kt: %d movements\n", int(windResults[1]))
+	fmt.Printf("  Diurnal Pattern (avg 15kt): %d movements\n", int(capacity5a))
 	diffPercent := int((float32(windResults[1])-capacity5a)/float32(windResults[1])*100)
 	if capacity5a > windResults[1] {
 		diffPercent = int((capacity5a-float32(windResults[1]))/capacity5a*100)
 	}
-	logger.Info("  Difference", "percent", diffPercent)
-	logger.Info("")
+	fmt.Printf("  Difference: %d%%\n", diffPercent)
+	fmt.Println()
 
 	// Summary
-	logger.Info("═══════════════════════════════════════════════════════════════")
-	logger.Info("CAPACITY SUMMARY")
-	logger.Info("═══════════════════════════════════════════════════════════════")
-	logger.Info("Theoretical Maximum (24/7, optimal)", "movements", int(capacity2))
-	logger.Info("Realistic Operations (all constraints)", "movements", int(capacity1))
-	logger.Info("Capacity Utilization", "percent", int(float32(capacity1)/float32(capacity2)*100))
-	logger.Info("")
-	logger.Info("Primary Limiting Factors:")
+	fmt.Println("═══════════════════════════════════════════════════════════════")
+	fmt.Println("CAPACITY SUMMARY")
+	fmt.Println("═══════════════════════════════════════════════════════════════")
+	fmt.Printf("Theoretical Maximum (24/7, optimal): %d movements\n", int(capacity2))
+	fmt.Printf("Realistic Operations (all constraints): %d movements\n", int(capacity1))
+	fmt.Printf("Capacity Utilization: %d%%\n", int(float32(capacity1)/float32(capacity2)*100))
+	fmt.Println()
+	fmt.Println("Primary Limiting Factors:")
 	capacityLoss := capacity2 - capacity1
-	logger.Info("  Total capacity loss", "movements", int(capacityLoss), "percent", int(capacityLoss/capacity2*100))
-	logger.Info("  • Curfew (7hrs daily): ~29% time reduction")
-	logger.Info("  • Rotation policy: ~10% efficiency reduction")
-	logger.Info("  • Gate/taxi constraints: Variable based on demand")
-	logger.Info("  • Maintenance: ~1-2% when scheduled intelligently")
-	logger.Info("  • Wind: 0-15% depending on conditions")
-	logger.Info("")
-	logger.Info("Wind Impact Range:")
+	fmt.Printf("  Total capacity loss: %d movements (%d%%)\n", int(capacityLoss), int(capacityLoss/capacity2*100))
+	fmt.Println("  • Curfew (7hrs daily): ~29% time reduction")
+	fmt.Println("  • Rotation policy: ~10% efficiency reduction")
+	fmt.Println("  • Gate/taxi constraints: Variable based on demand")
+	fmt.Println("  • Maintenance: ~1-2% when scheduled intelligently")
+	fmt.Println("  • Wind: 0-15% depending on conditions")
+	fmt.Println()
+	fmt.Println("Wind Impact Range:")
 	maxWind := windResults[0]
 	minWind := windResults[0]
 	for _, result := range windResults {
@@ -475,11 +486,11 @@ func main() {
 			minWind = result
 		}
 	}
-	logger.Info("  Best wind conditions", "movements", int(maxWind))
-	logger.Info("  Worst wind conditions", "movements", int(minWind))
-	logger.Info("  Range", "movements", int(maxWind-minWind), "percent", int((maxWind-minWind)/maxWind*100))
-	logger.Info("")
-	logger.Info("═══════════════════════════════════════════════════════════════")
-	logger.Info("Simulation complete! 🎉")
-	logger.Info("═══════════════════════════════════════════════════════════════")
+	fmt.Printf("  Best wind conditions: %d movements\n", int(maxWind))
+	fmt.Printf("  Worst wind conditions: %d movements\n", int(minWind))
+	fmt.Printf("  Range: %d movements (%d%%)\n", int(maxWind-minWind), int((maxWind-minWind)/maxWind*100))
+	fmt.Println()
+	fmt.Println("═══════════════════════════════════════════════════════════════")
+	fmt.Println("Simulation complete!")
+	fmt.Println("═══════════════════════════════════════════════════════════════")
 }
